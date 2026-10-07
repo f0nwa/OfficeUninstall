@@ -20,14 +20,15 @@ for arg in "$@"; do
         --dry-run) DRY_RUN=1 ;;
         --yes|-y) ASSUME_YES=1 ;;
         --no-profile) SKIP_PROFILE=1 ;;
-        -h|--help) sed -n '2,8p' "$0" 2>/dev/null; exit 0 ;;
+        -h|--help) echo "Options: --dry-run  --yes  --no-profile"; exit 0 ;;
         *) echo "Unknown option: $arg"; exit 1 ;;
     esac
 done
 
 # ---------------------------------------------------------------- root / user
 if [ "$(id -u)" -ne 0 ]; then
-    echo "Run as root:  sudo sh $0"
+    echo "Run as root, e.g.:"
+    echo "  sudo sh -c \"\$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh)\""
     exit 1
 fi
 

@@ -2,18 +2,23 @@
 Интерактивный shell-скрипт для полного удаления Microsoft Office для Mac 2011/2016/2019/2021/2024/365.
 
 # Использование
- 1. Закройте все приложения Office.
- 2. Скачайте скрипт и прочитайте его:
+Скрипт запускается сразу по сети, скачивать его не нужно. Закройте все приложения Office и выполните в Terminal.
+
+Сначала посмотрите, что будет удалено (ничего не удаляется):
 ```
-curl -O https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh
+sudo sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh)" _ --dry-run
 ```
- 3. Посмотрите, что будет удалено (ничего не удаляется):
+
+Затем запустите удаление. Перед каждой категорией скрипт задаёт вопрос:
 ```
-sudo sh office_uninstaller.sh --dry-run
+sudo sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh)"
 ```
- 4. Запустите скрипт. Перед каждой категорией он задаёт вопрос:
+
+Параметры добавляются после `_`: `--dry-run`, `--yes`, `--no-profile`.
+
+Привычный вариант тоже работает (вопросы читаются из терминала):
 ```
-sudo sh office_uninstaller.sh
+sudo sh -c "curl -s https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh | sh"
 ```
 
 - Запускайте с обычным `sudo`, `sudo su` **не нужен**. Скрипт сам определяет настоящего пользователя, поэтому ваш профиль (`~/Library`) очищается в любом случае. Раньше при `sudo su` профиль молча не затрагивался, теперь это выбор: скрипт спрашивает, чистить ли профиль, а флаг `--no-profile` оставляет профиль нетронутым (удаляются только системные файлы).
