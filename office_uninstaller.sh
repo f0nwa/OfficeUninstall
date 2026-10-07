@@ -10,6 +10,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
+SCRIPT_VERSION="2026-10-07 ui+lang"
 REMOVED=0
 CLEAN_PROFILE=0
 
@@ -25,13 +26,14 @@ fi
 # ---------------------------------------------------------------- language
 # Messages are shown in Russian when the macOS language is Russian, else in English.
 LANG_UI=en
-detect_lang()   # detect_lang [user]
+detect_lang()   # detect_lang [user_home]
 {
-    if [ -n "$1" ] && [ "$(id -u)" -eq 0 ]; then
-        first="$(sudo -u "$1" defaults read -g AppleLanguages 2>/dev/null | sed -n '2p')"
-    else
-        first="$(defaults read -g AppleLanguages 2>/dev/null | sed -n '2p')"
+    first=""
+    # Read the user's global preferences directly: under sudo "defaults -g" would read root's.
+    if [ -n "$1" ]; then
+        first="$(defaults read "$1/Library/Preferences/.GlobalPreferences" AppleLanguages 2>/dev/null | sed -n '2p')"
     fi
+    [ -n "$first" ] || first="$(defaults read -g AppleLanguages 2>/dev/null | sed -n '2p')"
     [ -n "$first" ] || first="${LC_ALL:-${LANG:-}}"
     case "$first" in
         *ru*|*RU*) LANG_UI=ru ;;
@@ -115,7 +117,7 @@ if [ -z "$USER_HOME" ] || [ ! -d "$USER_HOME" ] || [ "$USER_HOME" = "/var/root" 
     printf '%s%s%s\n' "$RED" "$(tx "Home directory of user '$TARGET_USER' not found." "Домашняя папка пользователя '$TARGET_USER' не найдена.")" "$RESET"
     exit 1
 fi
-detect_lang "$TARGET_USER"
+detect_lang "$USER_HOME"
 
 # Questions are read from the terminal, so it also works with "curl | sh".
 if ! [ -r /dev/tty ]; then
@@ -191,7 +193,7 @@ deleteids()   # deleteids DIR "ID LIST"
     done
 }
 
-as_user() { sudo -u "$TARGET_USER" "$@"; }
+as_user() { sudo -H -u "$TARGET_USER" "$@"; }
 
 PERSONAL="$USER_HOME/Library/Group Containers/UBF8T346G9.Office
 $USER_HOME/Library/Containers/com.microsoft.Outlook
@@ -204,6 +206,7 @@ title "$(tx "Microsoft Office for Mac uninstaller" "Удаление Microsoft O
 info "$(tx "Versions: 2011 / 2016 / 2019 / 2021 / 2024 / 365" "Версии: 2011 / 2016 / 2019 / 2021 / 2024 / 365")"
 info "$(tx "User" "Пользователь"): $TARGET_USER"
 info "$(tx "Home" "Домашняя папка"): $USER_HOME"
+info "$(tx "Language" "Язык"): $LANG_UI   $(tx "Script version" "Версия скрипта"): $SCRIPT_VERSION"
 
 if pgrep -x -f "Microsoft (Word|Excel|PowerPoint|Outlook|OneNote)" >/dev/null 2>&1; then
     printf '\n'
