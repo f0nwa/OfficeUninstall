@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-07 tcc"
+SCRIPT_VERSION="2026-10-07 tcc2"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -60,6 +60,7 @@ KC_COUNT=0
 KC_RC=0
 DO_SYSTEM=0
 FAILED=""
+TRASHED=0
 STEP_TITLE=""
 step_end() { STEP_TITLE=""; }
 # The title is printed lazily, only when something is actually removed in the step.
@@ -197,6 +198,13 @@ delete()
         else
             case "$rm_err" in
                 *"Operation not permitted"*|*"Permission denied"*)
+                    # Protected app data: Finder is allowed to remove it, so move it to the Trash.
+                    if trash_via_finder "$1"; then
+                        ok "$1 ($(tx "moved to Trash" "перемещено в Корзину"))"
+                        REMOVED=$((REMOVED + 1))
+                        TRASHED=1
+                        return
+                    fi
                     fail "$(tx "Access denied by macOS" "macOS не дала доступ"): $1"
                     FAILED="$FAILED
 $1" ;;
@@ -204,6 +212,17 @@ $1" ;;
             esac
         fi
     fi
+}
+
+trash_via_finder()   # trash_via_finder /path (only inside the user profile)
+{
+    case "$1" in
+        "$USER_HOME"/*) ;;
+        *) return 1 ;;
+    esac
+    case "$1" in *\"*|*\\*) return 1 ;; esac
+    as_user osascript -e "tell application \"Finder\" to delete POSIX file \"$1\"" >/dev/null 2>&1
+    [ ! -e "$1" ] && [ ! -L "$1" ]
 }
 
 deletefiles()   # deletefiles /path/prefix  -> removes /path/prefix*
@@ -642,6 +661,11 @@ if [ "$REMOVED" -gt 0 ]; then
     printf '\n%s%s%s %s%s\n' "$BOLD" "$GREEN" "$(tx "Done. Items removed:" "Готово. Удалено элементов:")" "$REMOVED" "$RESET"
 else
     printf '\n%s\n' "$(tx "Nothing was removed." "Ничего не удалено.")"
+fi
+
+if [ "$TRASHED" -eq 1 ]; then
+    printf '\n'
+    warn "$(tx "Some items were moved to the Trash because macOS blocked direct removal. Empty the Trash to free the space." "Часть элементов перемещена в Корзину, так как macOS заблокировала прямое удаление. Очистите Корзину, чтобы освободить место.")"
 fi
 
 if [ "$REMOVED" -gt 0 ] || [ "$KEYCHAIN_DONE" -eq 0 ]; then
