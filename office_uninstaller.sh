@@ -46,7 +46,7 @@ ask()   # ask "question" default(y|n)
     if [ "$2" = "y" ]; then hint="[Y/n]"; else hint="[y/N]"; fi
     while :; do
         printf '%s %s ' "$1" "$hint"
-        read answer < /dev/tty
+        read answer < /dev/tty || exit 1
         case "$answer" in
             "") [ "$2" = "y" ]; return ;;
             y|Y|yes|YES) return 0 ;;
@@ -325,16 +325,91 @@ if ask "6. Remove OneDrive too? (skip if you still use it)" n; then
     delete "$USER_HOME/Library/Cookies/com.microsoft.onedriveupdater.binarycookies"
 fi
 
+# ---------------------------------------------------------------- keychain
+# Runs as the real user (the keychain belongs to the user, not to root).
+# Only metadata is listed, passwords are never read.
+as_user() { sudo -u "$TARGET_USER" "$@"; }
+
+keychain_cleanup()
+{
+    section "Keychain (Microsoft accounts and Office entries)"
+    LIST="$(mktemp)"
+    if ! as_user security dump-keychain 2>/dev/null | awk '
+        function val(line, key,   m) {
+            if (match(line, "\"" key "\"<[a-z]+>=\"")) {
+                m = substr(line, RSTART + RLENGTH)
+                sub(/"[^"]*$/, "", m)
+                return m
+            }
+            return ""
+        }
+        function flush() {
+            if (class == "") return
+            name = svce svr labl
+            low = tolower(name)
+            if (low ~ /microsoft|adal|msal|oneauth|office|onedrive/ && low !~ /edge|teams|remote desktop/)
+                printf "%s|%s|%s|%s|%s\n", class, svce, acct, svr, labl
+            class = svce = acct = svr = labl = ""
+        }
+        /^keychain:/ { flush() }
+        /^class: "genp"/ { class = "genp" }
+        /^class: "inet"/ { class = "inet" }
+        /"svce"</ { svce = val($0, "svce") }
+        /"acct"</ { acct = val($0, "acct") }
+        /"srvr"</ { svr = val($0, "srvr") }
+        /"labl"</ { labl = val($0, "labl") }
+        END { flush() }
+    ' | sort -u > "$LIST"; then
+        echo "Could not read the keychain (locked or no graphical session)."
+        rm -f "$LIST"
+        return 1
+    fi
+    if [ ! -s "$LIST" ]; then
+        echo "No Microsoft/Office entries found."
+        rm -f "$LIST"
+        return 0
+    fi
+    echo "Found entries (passwords are not read). macOS may ask you to allow the removal."
+    while IFS="|" read -r class svce acct svr labl; do
+        if [ "$class" = "genp" ]; then
+            desc="password: service='$svce' account='$acct' label='$labl'"
+        else
+            desc="internet password: server='$svr' account='$acct' label='$labl'"
+        fi
+        if ask "Delete $desc ?" n; then
+            if [ "$DRY_RUN" -eq 1 ]; then
+                echo "[dry-run] would delete keychain entry"
+            elif [ "$class" = "genp" ]; then
+                as_user security delete-generic-password -s "$svce" ${acct:+-a "$acct"} >/dev/null 2>&1 \
+                    && echo "Deleted" || echo "Not deleted (cancelled or no access)"
+            else
+                as_user security delete-internet-password -s "$svr" ${acct:+-a "$acct"} >/dev/null 2>&1 \
+                    && echo "Deleted" || echo "Not deleted (cancelled or no access)"
+            fi
+        fi
+    done < "$LIST"
+    rm -f "$LIST"
+}
+
+KEYCHAIN_DONE=0
+if ask "Search the keychain for Microsoft account / Office entries?" n; then
+    keychain_cleanup && KEYCHAIN_DONE=1
+fi
+
 # ---------------------------------------------------------------- summary
 printf '\nDone. %s item(s) %s.\n' "$REMOVED" "$([ "$DRY_RUN" -eq 1 ] && echo 'would be removed' || echo 'removed')"
 
-cat <<'TXT'
-
-Finish the uninstall manually:
+echo
+echo "Finish the uninstall manually:"
+if [ "$KEYCHAIN_DONE" -eq 0 ]; then
+    cat <<'TXT'
 1. Open Keychain Access and remove the entries
      Microsoft Office Identities Cache 2
      Microsoft Office Identities Settings 2
-2. Search the keychain for "ADAL" and remove all matching entries.
-3. Remove Office icons from the Dock (right-click > Options > Remove from Dock).
-4. Restart the computer.
+   Search the keychain for "ADAL" and remove all matching entries.
+TXT
+fi
+cat <<'TXT'
+- Remove Office icons from the Dock (right-click > Options > Remove from Dock).
+- Restart the computer.
 TXT
