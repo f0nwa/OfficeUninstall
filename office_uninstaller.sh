@@ -112,7 +112,7 @@ fi
 
 if [ "$SKIP_PROFILE" -eq 0 ]; then
     echo "Office also stores settings, containers and caches in your profile ($USER_HOME/Library)."
-    ask "Clean the user profile too? (No = only system-wide files)" y || SKIP_PROFILE=1
+    ask "Clean the user profile too? (No = only system-wide files)" n || SKIP_PROFILE=1
 fi
 [ "$SKIP_PROFILE" -eq 1 ] && echo "User profile will NOT be touched."
 
