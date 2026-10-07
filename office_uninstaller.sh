@@ -10,7 +10,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-07 ui+lang"
+SCRIPT_VERSION="2026-10-07 contrast"
 REMOVED=0
 CLEAN_PROFILE=0
 
@@ -18,7 +18,7 @@ CLEAN_PROFILE=0
 ESC="$(printf '\033')"
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
     CYAN="${ESC}[36m"; BOLD="${ESC}[1m"; GREEN="${ESC}[32m"; YELLOW="${ESC}[33m"
-    RED="${ESC}[31m"; DETAIL="${ESC}[90m"; MAGENTA="${ESC}[35m"; RESET="${ESC}[0m"
+    RED="${ESC}[31m"; DETAIL=""; MAGENTA="${ESC}[35m"; RESET="${ESC}[0m"
 else
     CYAN=""; BOLD=""; GREEN=""; YELLOW=""; RED=""; DETAIL=""; MAGENTA=""; RESET=""
 fi
@@ -141,7 +141,7 @@ ask()
         if [ "$2" = "y" ]; then hint="[Y/n]"; else hint="[y/N]"; fi
     fi
     while :; do
-        printf '  %s›%s %s%s%s ' "$YELLOW" "$RESET" "$DETAIL" "$hint" "$RESET"
+        printf '  %s›%s %s%s%s ' "$YELLOW" "$RESET" "$YELLOW" "$hint" "$RESET"
         read answer < /dev/tty || exit 1
         case "$answer" in
             "") [ "$2" = "y" ]; return ;;
