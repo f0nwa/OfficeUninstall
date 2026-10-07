@@ -3,14 +3,16 @@
 # Author : jim ye
 # Interactive uninstaller for Microsoft Office for Mac 2011/2016/2019/2021/2024/365
 #
-# Usage:  sudo sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh)"
+# Usage:  sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh)"
+#         (asks for the macOS password itself; "sudo sh -c ..." works too)
 # No options: the script asks everything interactively.
 #
 # Reference:
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-07 contrast"
+SCRIPT_VERSION="2026-10-07 sudo-hint"
+SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
 
@@ -98,9 +100,20 @@ trap 'spin_stop; printf "\n"; exit 130' INT TERM
 
 # ---------------------------------------------------------------- root / user
 if [ "$(id -u)" -ne 0 ]; then
-    printf '%s%s%s\n' "$YELLOW" "$(tx "Run as root, e.g.:" "Запустите от имени администратора, например:")" "$RESET"
-    printf '  sudo sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh)"\n'
-    exit 1
+    title "$(tx "Administrator rights required" "Требуются права администратора")"
+    info "$(tx "Now you will be asked for the local password of your Mac account (the one you use to log in)." "Сейчас потребуется ввести локальный пароль от вашей учётной записи macOS (тот, которым вы входите в систему).")"
+    info "$(tx "Characters are not shown while you type, this is normal. Press Enter when done." "Символы при вводе не отображаются, это нормально. После ввода нажмите Enter.")"
+    printf '\n'
+    SUDO_PROMPT="$(tx "Mac account password: " "Пароль учётной записи Mac: ")"
+    if [ -f "$0" ] && [ "$0" != "sh" ]; then
+        exec sudo -p "$SUDO_PROMPT" sh "$0"
+    fi
+    SELF="$(curl -fsSL "$SCRIPT_URL?$(date +%s)")"
+    if [ -z "$SELF" ]; then
+        printf '%s%s%s\n' "$RED" "$(tx "Cannot download the script." "Не удалось загрузить скрипт.")" "$RESET"
+        exit 1
+    fi
+    exec sudo -p "$SUDO_PROMPT" sh -c "$SELF"
 fi
 
 # The real user, whether started via "sudo sh", "sudo su" or "sudo sh -c ..."
