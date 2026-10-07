@@ -1,17 +1,28 @@
-# Microsoft Office For Mac Uninstaller
-This is a shell script to deep uninstall Microsoft Office for Mac 2011/2016/2019/365. 
+# Удаление Microsoft Office для Mac
+Интерактивный shell-скрипт для полного удаления Microsoft Office для Mac 2011/2016/2019/2021/2024/365.
 
-# Usage
- 1. Make sure all Office applications are closed.
- 2. Open Terminal, run:
+# Использование
+ 1. Закройте все приложения Office.
+ 2. Скачайте скрипт и прочитайте его:
 ```
-sudo sh -c "curl -s https://raw.githubusercontent.com/jimye/OfficeUninstall/master/office_uninstaller.sh | sh"
+curl -O https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh
+```
+ 3. Посмотрите, что будет удалено (ничего не удаляется):
+```
+sudo sh office_uninstaller.sh --dry-run
+```
+ 4. Запустите скрипт. Перед каждой категорией он задаёт вопрос:
+```
+sudo sh office_uninstaller.sh
 ```
 
-- As Microsoft Office for Mac is installed with root on /Applications, you have to run this script with sudo.
-	
-# Reference
-Microsoft not provide a offical uninstall program, but some documents about how to uninstall can be found in their website.
+- Запускайте с обычным `sudo`, `sudo su` **не нужен**. Скрипт определяет настоящего пользователя через `SUDO_USER`, поэтому ваша папка `~/Library` очищается в обоих случаях.
+- Локальные данные Outlook (`UBF8T346G9.Office`, `com.microsoft.Outlook`) сохраняются, если вы явно не согласитесь их удалить. Перед удалением предлагается резервная копия на Рабочий стол.
+- Удаляются только компоненты Office. Другие продукты Microsoft (Edge, VS Code, Teams и др.) не затрагиваются, а OneDrive удаляется только по отдельному вопросу.
+- `--yes` отвечает на вопросы значениями по умолчанию (данные Outlook и OneDrive остаются).
+
+# Ссылки
+Microsoft не предоставляет официальную программу удаления, но инструкции есть на сайте:
  1. [How to completely remove Office for Mac 2011][1]
  2. [Troubleshoot Office for Mac issues by completely uninstalling before you reinstall][2]
 
