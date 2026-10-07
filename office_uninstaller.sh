@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Author : jim ye
-# Interactive uninstaller for Microsoft Office for Mac 2011/2016/2019/365
+# Interactive uninstaller for Microsoft Office for Mac 2011/2016/2019/2021/2024/365
 #
 # Usage:  sudo sh office_uninstaller.sh [--dry-run] [--yes]
 #   --dry-run  only show what would be removed, delete nothing
@@ -103,7 +103,7 @@ deleteids()   # deleteids DIR "ID LIST"
 section() { printf '\n== %s ==\n' "$1"; }
 
 # ---------------------------------------------------------------- start
-echo "This will uninstall Microsoft Office for Mac 2011/2016/2019/365."
+echo "This will uninstall Microsoft Office for Mac 2011/2016/2019/2021/2024/365."
 echo "User: $TARGET_USER   Home: $USER_HOME"
 [ "$DRY_RUN" -eq 1 ] && echo "DRY RUN: nothing will be deleted."
 

@@ -1,28 +1,28 @@
-# Microsoft Office For Mac Uninstaller
-This is a shell script to deep uninstall Microsoft Office for Mac 2011/2016/2019/365. 
+# Удаление Microsoft Office для Mac
+Интерактивный shell-скрипт для полного удаления Microsoft Office для Mac 2011/2016/2019/2021/2024/365.
 
-# Usage
- 1. Make sure all Office applications are closed.
- 2. Download the script and read it:
+# Использование
+ 1. Закройте все приложения Office.
+ 2. Скачайте скрипт и прочитайте его:
 ```
 curl -O https://raw.githubusercontent.com/f0nwa/officeuninstall/claude/admiring-tesla-itpkxw/office_uninstaller.sh
 ```
- 3. Preview what would be removed (nothing is deleted):
+ 3. Посмотрите, что будет удалено (ничего не удаляется):
 ```
 sudo sh office_uninstaller.sh --dry-run
 ```
- 4. Run it. The script asks before every category:
+ 4. Запустите скрипт. Перед каждой категорией он задаёт вопрос:
 ```
 sudo sh office_uninstaller.sh
 ```
 
-- Run it with plain `sudo`; `sudo su` is **not** needed. The script finds the real user via `SUDO_USER`, so your own `~/Library` is cleaned in both cases.
-- Outlook local data (`UBF8T346G9.Office`, `com.microsoft.Outlook`) is kept unless you explicitly agree; a backup to the Desktop is offered.
-- Only Office bundle ids are removed, other Microsoft apps (Edge, VS Code, Teams ...) and OneDrive (asked separately) are left alone.
-- `--yes` answers the questions with defaults (personal data and OneDrive are kept).
+- Запускайте с обычным `sudo`, `sudo su` **не нужен**. Скрипт определяет настоящего пользователя через `SUDO_USER`, поэтому ваша папка `~/Library` очищается в обоих случаях.
+- Локальные данные Outlook (`UBF8T346G9.Office`, `com.microsoft.Outlook`) сохраняются, если вы явно не согласитесь их удалить. Перед удалением предлагается резервная копия на Рабочий стол.
+- Удаляются только компоненты Office. Другие продукты Microsoft (Edge, VS Code, Teams и др.) не затрагиваются, а OneDrive удаляется только по отдельному вопросу.
+- `--yes` отвечает на вопросы значениями по умолчанию (данные Outlook и OneDrive остаются).
 
-# Reference
-Microsoft not provide a offical uninstall program, but some documents about how to uninstall can be found in their website.
+# Ссылки
+Microsoft не предоставляет официальную программу удаления, но инструкции есть на сайте:
  1. [How to completely remove Office for Mac 2011][1]
  2. [Troubleshoot Office for Mac issues by completely uninstalling before you reinstall][2]
 
