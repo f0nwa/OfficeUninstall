@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-07 tcc2"
+SCRIPT_VERSION="2026-10-07 hollow"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -61,6 +61,7 @@ KC_RC=0
 DO_SYSTEM=0
 FAILED=""
 TRASHED=0
+PROTECT_PERSONAL=0
 STEP_TITLE=""
 step_end() { STEP_TITLE=""; }
 # The title is printed lazily, only when something is actually removed in the step.
@@ -168,8 +169,26 @@ ask()
 }
 
 # ---------------------------------------------------------------- delete helpers
+# A container left with nothing but the system metadata file (macOS keeps it and
+# does not let anyone remove it) holds no data: treat it as already gone.
+is_hollow()
+{
+    [ -d "$1" ] || return 1
+    hollow_out="$(find "$1" -mindepth 1 ! -name '.com.apple.containermanagerd.metadata.plist' 2>/dev/null)"
+    [ $? -eq 0 ] && [ -z "$hollow_out" ]
+}
+
+is_personal() { printf '%s\n' "$PERSONAL" | grep -Fxq -- "$1"; }
+
 delete()
 {
+    case "$1" in
+        "$USER_HOME/Library/Containers/"*|"$USER_HOME/Library/Group Containers/"*)
+            is_hollow "$1" && return ;;
+    esac
+    if [ "$PROTECT_PERSONAL" -eq 1 ] && is_personal "$1"; then
+        return
+    fi
     if [ "$MODE" = "scan" ]; then
         if [ -e "$1" ] || [ -L "$1" ]; then
             case "$1" in
@@ -261,6 +280,7 @@ do_backup()
     BACKUP="$USER_HOME/Desktop/OfficeUninstall-backup-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$BACKUP"
     COPIED=0
+    COPY_FAILED=0
     while IFS= read -r p; do
         if [ -e "$p" ]; then
             spin_start "$(tx "Copying" "Копирование") $p"
@@ -272,6 +292,7 @@ do_backup()
                 COPIED=$((COPIED + 1))
             else
                 fail "$(tx "Cannot copy" "Не удалось скопировать") $p"
+                COPY_FAILED=$((COPY_FAILED + 1))
             fi
         fi
     done <<EOF
@@ -282,8 +303,15 @@ EOF
         info "$(tx "Backup stored in" "Копия сохранена в") ${MAGENTA}${BACKUP}${RESET}"
     else
         rmdir "$BACKUP" 2>/dev/null
-        info "$(tx "No Outlook data found, backup not needed." "Данные Outlook не найдены, копия не нужна.")"
+        if [ "$COPY_FAILED" -eq 0 ]; then
+            info "$(tx "No Outlook data found, backup not needed." "Данные Outlook не найдены, копия не нужна.")"
+        fi
     fi
+    if [ "$COPY_FAILED" -gt 0 ]; then
+        warn "$(tx "Backup is incomplete: macOS denied access to some Outlook data." "Резервная копия неполная: macOS не дала доступ к части данных Outlook.")"
+        return 1
+    fi
+    return 0
 }
 
 # ---------------------------------------------------------------- removal
@@ -635,7 +663,13 @@ fi
 
 # ---- 3. removal
 if [ "$CLEAN_PROFILE" -eq 1 ] || [ "$DO_SYSTEM" -eq 1 ]; then
-    [ "$DO_BACKUP" -eq 1 ] && do_backup
+    if [ "$DO_BACKUP" -eq 1 ] && ! do_backup; then
+        if ! ask "$(tx "Remove Outlook data without a complete backup?" "Удалить данные Outlook без полной резервной копии?")" n \
+        "$(tx "Allow Terminal access (Full Disk Access) and run the script again to make a backup." "Выдайте Terminal доступ (полный доступ к диску) и запустите скрипт снова, чтобы сделать копию.")"; then
+            PROTECT_PERSONAL=1
+            info "$(tx "Outlook data will be kept." "Данные Outlook будут сохранены.")"
+        fi
+    fi
     if [ "$CLEAN_PROFILE" -eq 1 ]; then
         printf '\n'
         warn "$(tx "macOS may show: 'Terminal wants to access data of other apps'. Click Allow, otherwise app containers cannot be removed." "macOS может показать окно «Терминал запрашивает доступ к данным других приложений». Нажмите «Разрешить», иначе контейнеры приложений не удалятся.")"
