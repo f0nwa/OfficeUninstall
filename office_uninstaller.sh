@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-07 sudo-hint"
+SCRIPT_VERSION="2026-10-07 precheck2"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -52,16 +52,17 @@ warn()  { printf '  %s! %s%s\n' "$YELLOW" "$1" "$RESET"; }
 fail()  { printf '  %s✗ %s%s\n' "$RED" "$1" "$RESET"; }
 ok()    { printf '  %s✓%s %s%s%s\n' "$GREEN" "$RESET" "$DETAIL" "$1" "$RESET"; }
 
-STEP_OPEN=0
-STEP_START=0
-step_end()
-{
-    if [ "$STEP_OPEN" -eq 1 ] && [ "$REMOVED" -eq "$STEP_START" ]; then
-        info "$(tx "nothing found" "ничего не найдено")"
-    fi
-    STEP_OPEN=0
-}
-step() { step_end; title "$1"; STEP_OPEN=1; STEP_START=$REMOVED; }
+MODE=run          # "scan": only count what exists, print and delete nothing
+FOUND_SYSTEM=0
+FOUND_PROFILE=0
+FOUND_PERSONAL=0
+KC_COUNT=0
+KC_RC=0
+DO_SYSTEM=0
+STEP_TITLE=""
+step_end() { STEP_TITLE=""; }
+# The title is printed lazily, only when something is actually removed in the step.
+step() { [ "$MODE" = "scan" ] && return; STEP_TITLE="$1"; }
 
 # ---------------------------------------------------------------- spinner
 SPIN_PID=""
@@ -167,10 +168,24 @@ ask()
 # ---------------------------------------------------------------- delete helpers
 delete()
 {
-    if [ "$CLEAN_PROFILE" -eq 0 ]; then
-        case "$1" in "$USER_HOME"/*) return ;; esac
+    if [ "$MODE" = "scan" ]; then
+        if [ -e "$1" ] || [ -L "$1" ]; then
+            case "$1" in
+                "$USER_HOME"/*) FOUND_PROFILE=$((FOUND_PROFILE + 1)) ;;
+                *) FOUND_SYSTEM=$((FOUND_SYSTEM + 1)) ;;
+            esac
+        fi
+        return
     fi
+    case "$1" in
+        "$USER_HOME"/*) [ "$CLEAN_PROFILE" -eq 1 ] || return ;;
+        *) [ "$DO_SYSTEM" -eq 1 ] || return ;;
+    esac
     if [ -e "$1" ] || [ -L "$1" ]; then
+        if [ -n "$STEP_TITLE" ]; then
+            title "$STEP_TITLE"
+            STEP_TITLE=""
+        fi
         spin_start "$(tx "Removing" "Удаление") $1"
         rm -rf "$1"
         rc=$?
@@ -213,44 +228,9 @@ $USER_HOME/Library/Containers/com.microsoft.Outlook
 $USER_HOME/Documents/Microsoft ~ Data
 $USER_HOME/Documents/Microsoft User Data"
 
-# ---------------------------------------------------------------- start
-[ -t 1 ] && clear
-title "$(tx "Microsoft Office for Mac uninstaller" "Удаление Microsoft Office для Mac")"
-info "$(tx "Versions: 2011 / 2016 / 2019 / 2021 / 2024 / 365" "Версии: 2011 / 2016 / 2019 / 2021 / 2024 / 365")"
-info "$(tx "User" "Пользователь"): $TARGET_USER"
-info "$(tx "Home" "Домашняя папка"): $USER_HOME"
-info "$(tx "Language" "Язык"): $LANG_UI   $(tx "Script version" "Версия скрипта"): $SCRIPT_VERSION"
-
-if pgrep -x -f "Microsoft (Word|Excel|PowerPoint|Outlook|OneNote)" >/dev/null 2>&1; then
-    printf '\n'
-    warn "$(tx "Office applications are still running. Please quit them first." "Приложения Office ещё запущены. Сначала закройте их.")"
-    ask "$(tx "Continue anyway?" "Всё равно продолжить?")" n || exit 1
-fi
-
-# ---------------------------------------------------------------- questions
-DO_BACKUP=0
-if ask "$(tx "Remove the user profile data of Office?" "Удалить данные Office из пользовательского профиля?")" n \
-"$(tx "Settings, containers, caches and local Outlook data (mail archives) in $USER_HOME/Library.
-Without it Office leftovers may stay in your profile." "Настройки, контейнеры, кэши и локальные данные Outlook (почтовые архивы) в $USER_HOME/Library.
-Без этого в профиле могут остаться следы Office.")"; then
-    CLEAN_PROFILE=1
-    if ask "$(tx "Save a backup copy of Outlook data to the Desktop first?" "Сохранить резервную копию данных Outlook на Рабочий стол?")" y \
-    "$(tx "Local mail archives cannot be restored after removal." "Локальные почтовые архивы после удаления не восстановить.")"; then
-        DO_BACKUP=1
-    fi
-fi
-
-if ! ask "$(tx "Remove Microsoft Office and all other components?" "Удалить Microsoft Office и все остальные компоненты?")" y \
-"$(tx "Applications, settings and licensing helpers, containers, Application Support,
-caches and logs, Automator actions, receipts, fonts and OneDrive." "Приложения, настройки и службы лицензирования, контейнеры, Application Support,
-кэши и логи, действия Automator, чеки установки, шрифты и OneDrive.")"; then
-    printf '\n'
-    info "$(tx "Cancelled, nothing was removed." "Отменено, ничего не удалено.")"
-    exit 0
-fi
-
 # ---------------------------------------------------------------- backup
-if [ "$DO_BACKUP" -eq 1 ]; then
+do_backup()
+{
     title "$(tx "Backup" "Резервная копия")"
     BACKUP="$USER_HOME/Desktop/OfficeUninstall-backup-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$BACKUP"
@@ -278,9 +258,12 @@ EOF
         rmdir "$BACKUP" 2>/dev/null
         info "$(tx "No Outlook data found, backup not needed." "Данные Outlook не найдены, копия не нужна.")"
     fi
-fi
+}
 
 # ---------------------------------------------------------------- removal
+# Also used in scan mode (MODE=scan) to find out what exists before asking questions.
+remove_all()
+{
 step "$(tx "Applications" "Приложения")"
 delete "/Applications/Microsoft Office 2011"
 for a in Communicator Messenger Outlook Excel OneNote PowerPoint Word; do
@@ -448,7 +431,7 @@ deletefiles "/Library/Logs/DiagnosticReports/OneDrive"
 delete "$USER_HOME/Library/Cookies/com.microsoft.onedrive.binarycookies"
 delete "$USER_HOME/Library/Cookies/com.microsoft.onedriveupdater.binarycookies"
 
-if [ "$CLEAN_PROFILE" -eq 1 ]; then
+if [ "$MODE" = "scan" ] || [ "$CLEAN_PROFILE" -eq 1 ]; then
     step "$(tx "Outlook data" "Данные Outlook")"
     while IFS= read -r p; do
         delete "$p"
@@ -457,21 +440,18 @@ $PERSONAL
 EOF
 fi
 step_end
-
-if [ "$CLEAN_PROFILE" -eq 0 ]; then
-    printf '\n'
-    warn "$(tx "User profile was not touched (settings, caches, Outlook data)." "Пользовательский профиль не затронут (настройки, кэши, данные Outlook).")"
-fi
+}
 
 # ---------------------------------------------------------------- keychain
 # Runs as the real user (the keychain belongs to the user, not to root).
 # Only metadata is listed, passwords are never read.
-keychain_cleanup()
+keychain_scan()
 {
-    title "$(tx "Keychain" "Связка ключей")"
     LIST="$(mktemp)"
-    spin_start "$(tx "Searching the keychain..." "Поиск в связке ключей...")"
-    as_user security dump-keychain 2>/dev/null | awk '
+    RAW="$(mktemp)"
+    as_user security dump-keychain >"$RAW" 2>/dev/null
+    KC_RC=$?
+    awk '
         function val(line, key,   m) {
             if (match(line, "\"" key "\"<[a-z]+>=\"")) {
                 m = substr(line, RSTART + RLENGTH)
@@ -496,13 +476,14 @@ keychain_cleanup()
         /"srvr"</ { svr = val($0, "srvr") }
         /"labl"</ { labl = val($0, "labl") }
         END { flush() }
-    ' | sort -u > "$LIST"
-    spin_stop
-    if [ ! -s "$LIST" ]; then
-        info "$(tx "No Microsoft/Office entries found." "Записи Microsoft/Office не найдены.")"
-        rm -f "$LIST"
-        return 0
-    fi
+    ' "$RAW" | sort -u > "$LIST"
+    rm -f "$RAW"
+    KC_COUNT="$(wc -l < "$LIST" | tr -d ' ')"
+}
+
+keychain_cleanup()
+{
+    title "$(tx "Keychain" "Связка ключей")"
     info "$(tx "Passwords are not read. macOS may ask you to allow the removal." "Пароли не читаются. macOS может запросить разрешение на удаление.")"
     while IFS="|" read -r class svce acct svr labl; do
         if [ "$class" = "genp" ]; then
@@ -527,21 +508,109 @@ keychain_cleanup()
     rm -f "$LIST"
 }
 
+# ---------------------------------------------------------------- main
+# Cleanup of temporary files on exit
+trap 'spin_stop; [ -n "${LIST:-}" ] && rm -f "$LIST"' EXIT
+
+[ -t 1 ] && clear
+title "$(tx "Microsoft Office for Mac uninstaller" "Удаление Microsoft Office для Mac")"
+info "$(tx "Versions: 2011 / 2016 / 2019 / 2021 / 2024 / 365" "Версии: 2011 / 2016 / 2019 / 2021 / 2024 / 365")"
+info "$(tx "User" "Пользователь"): $TARGET_USER"
+info "$(tx "Home" "Домашняя папка"): $USER_HOME"
+info "$(tx "Language" "Язык"): $LANG_UI   $(tx "Script version" "Версия скрипта"): $SCRIPT_VERSION"
+
+
+
+# ---- 1. check what exists before asking anything
+printf '\n'
+spin_start "$(tx "Checking what is installed..." "Проверяем, что есть на компьютере...")"
+MODE=scan
+remove_all
+MODE=run
+while IFS= read -r p; do
+    [ -e "$p" ] && FOUND_PERSONAL=$((FOUND_PERSONAL + 1))
+done <<EOF
+$PERSONAL
+EOF
+keychain_scan
+spin_stop
+
+title "$(tx "Check result" "Результат проверки")"
+info "$(tx "System components found" "Найдено системных компонентов"): $FOUND_SYSTEM"
+info "$(tx "Items in the user profile" "Элементов в профиле пользователя"): $FOUND_PROFILE ($(tx "Outlook data" "данные Outlook"): $FOUND_PERSONAL)"
+if [ "$KC_RC" -eq 0 ]; then
+    info "$(tx "Keychain entries" "Записей в связке ключей"): $KC_COUNT"
+else
+    info "$(tx "Keychain entries: could not check (locked or no graphical session)" "Записи в связке ключей: проверить не удалось (связка заблокирована или нет графической сессии)")"
+fi
+
+if [ "$FOUND_SYSTEM" -eq 0 ] && [ "$FOUND_PROFILE" -eq 0 ] && [ "$KC_COUNT" -eq 0 ] && [ "$KC_RC" -eq 0 ]; then
+    printf '\n%s%s%s%s\n\n' "$BOLD" "$GREEN" "$(tx "No traces of Microsoft Office found, nothing to remove." "Следов Microsoft Office не найдено, удалять нечего.")" "$RESET"
+    exit 0
+fi
+
+if [ "$FOUND_SYSTEM" -gt 0 ] || [ "$FOUND_PROFILE" -gt 0 ]; then
+    if pgrep -x -f "Microsoft (Word|Excel|PowerPoint|Outlook|OneNote)" >/dev/null 2>&1; then
+        printf '\n'
+        warn "$(tx "Office applications are still running. Please quit them first." "Приложения Office ещё запущены. Сначала закройте их.")"
+        ask "$(tx "Continue anyway?" "Всё равно продолжить?")" n || exit 1
+    fi
+fi
+
+# ---- 2. questions, only about what was found
+DO_BACKUP=0
+if [ "$FOUND_PROFILE" -gt 0 ] && ask "$(tx "Remove the user profile data of Office?" "Удалить данные Office из пользовательского профиля?")" n \
+"$(tx "Found: $FOUND_PROFILE item(s) in $USER_HOME/Library (settings, containers, caches, local Outlook data).
+Without removing them Office leftovers may stay in your profile." "Найдено: $FOUND_PROFILE элемент(ов) в $USER_HOME/Library (настройки, контейнеры, кэши, локальные данные Outlook).
+Если их не удалять, в профиле могут остаться следы Office.")"; then
+    CLEAN_PROFILE=1
+    if [ "$FOUND_PERSONAL" -gt 0 ] && ask "$(tx "Save a backup copy of Outlook data to the Desktop first?" "Сохранить резервную копию данных Outlook на Рабочий стол?")" y \
+    "$(tx "Local mail archives cannot be restored after removal." "Локальные почтовые архивы после удаления не восстановить.")"; then
+        DO_BACKUP=1
+    fi
+fi
+
+if [ "$FOUND_SYSTEM" -gt 0 ] && ask "$(tx "Remove Microsoft Office and all other components?" "Удалить Microsoft Office и все остальные компоненты?")" y \
+"$(tx "Found: $FOUND_SYSTEM component(s): applications, settings and licensing helpers, containers,
+Application Support, caches and logs, Automator actions, receipts, fonts and OneDrive." "Найдено компонентов: $FOUND_SYSTEM: приложения, настройки и службы лицензирования, контейнеры,
+Application Support, кэши и логи, действия Automator, чеки установки, шрифты и OneDrive.")"; then
+    DO_SYSTEM=1
+fi
+
+# ---- 3. removal
+if [ "$CLEAN_PROFILE" -eq 1 ] || [ "$DO_SYSTEM" -eq 1 ]; then
+    [ "$DO_BACKUP" -eq 1 ] && do_backup
+    remove_all
+fi
+if [ "$FOUND_PROFILE" -gt 0 ] && [ "$CLEAN_PROFILE" -eq 0 ]; then
+    printf '\n'
+    warn "$(tx "User profile was not touched (settings, caches, Outlook data)." "Пользовательский профиль не затронут (настройки, кэши, данные Outlook).")"
+fi
+
+# ---- 4. keychain
 KEYCHAIN_DONE=0
-if ask "$(tx "Search the keychain for Microsoft account / Office entries?" "Поискать в связке ключей записи аккаунта Microsoft / Office?")" n \
-"$(tx "Entries are listed one by one, you confirm each deletion." "Записи показываются по одной, каждое удаление подтверждается отдельно.")"; then
+if [ "$KC_COUNT" -gt 0 ] && ask "$(tx "Delete Microsoft account / Office entries from the keychain?" "Удалить из связки ключей записи аккаунта Microsoft / Office?")" n \
+"$(tx "Found: $KC_COUNT entry(ies). They are shown one by one, you confirm each deletion." "Найдено записей: $KC_COUNT. Они показываются по одной, каждое удаление подтверждается отдельно.")"; then
     keychain_cleanup
     KEYCHAIN_DONE=1
 fi
 
 # ---------------------------------------------------------------- summary
-printf '\n%s%s%s %s%s%s\n' "$BOLD" "$GREEN" "$(tx "Done. Items removed:" "Готово. Удалено элементов:")" "$REMOVED" "" "$RESET"
-
-title "$(tx "Finish the uninstall manually" "Завершите удаление вручную")"
-if [ "$KEYCHAIN_DONE" -eq 0 ]; then
-    info "$(tx "1. Open Keychain Access and remove the entries \"Microsoft Office Identities Cache 2\" and \"Microsoft Office Identities Settings 2\"." "1. Откройте «Связку ключей» и удалите записи «Microsoft Office Identities Cache 2» и «Microsoft Office Identities Settings 2».")"
-    info "$(tx "   Search the keychain for \"ADAL\" and remove all matching entries." "   Найдите все записи со словом «ADAL» и удалите их.")"
+if [ "$REMOVED" -gt 0 ]; then
+    printf '\n%s%s%s %s%s\n' "$BOLD" "$GREEN" "$(tx "Done. Items removed:" "Готово. Удалено элементов:")" "$REMOVED" "$RESET"
+else
+    printf '\n%s\n' "$(tx "Nothing was removed." "Ничего не удалено.")"
 fi
-info "$(tx "- Remove Office icons from the Dock (right-click > Options > Remove from Dock)." "- Уберите значки Office из Dock (правый клик > Параметры > Удалить из Dock).")"
-info "$(tx "- Restart the computer." "- Перезагрузите компьютер.")"
+
+if [ "$REMOVED" -gt 0 ] || [ "$KEYCHAIN_DONE" -eq 0 ]; then
+    title "$(tx "Finish the uninstall manually" "Завершите удаление вручную")"
+    if [ "$KEYCHAIN_DONE" -eq 0 ] && { [ "$KC_COUNT" -gt 0 ] || [ "$KC_RC" -ne 0 ]; }; then
+        info "$(tx "1. Open Keychain Access and remove the entries \"Microsoft Office Identities Cache 2\" and \"Microsoft Office Identities Settings 2\"." "1. Откройте «Связку ключей» и удалите записи «Microsoft Office Identities Cache 2» и «Microsoft Office Identities Settings 2».")"
+        info "$(tx "   Search the keychain for \"ADAL\" and remove all matching entries." "   Найдите все записи со словом «ADAL» и удалите их.")"
+    fi
+    if [ "$REMOVED" -gt 0 ]; then
+        info "$(tx "- Remove Office icons from the Dock (right-click > Options > Remove from Dock)." "- Уберите значки Office из Dock (правый клик > Параметры > Удалить из Dock).")"
+        info "$(tx "- Restart the computer." "- Перезагрузите компьютер.")"
+    fi
+fi
 printf '\n'
