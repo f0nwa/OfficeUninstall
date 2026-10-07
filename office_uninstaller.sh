@@ -3,28 +3,15 @@
 # Author : jim ye
 # Interactive uninstaller for Microsoft Office for Mac 2011/2016/2019/2021/2024/365
 #
-# Usage:  sudo sh office_uninstaller.sh [--dry-run] [--yes]
-#   --dry-run  only show what would be removed, delete nothing
-#   --yes      do not ask questions, remove every category except personal data
-#   --no-profile  do not touch anything inside the user's home folder (~/Library ...)
+# Usage:  sudo sh office_uninstaller.sh
+# No options: the script asks everything interactively (dry run, profile, each category).
 #
 # Reference:
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
 DRY_RUN=0
-ASSUME_YES=0
 SKIP_PROFILE=0
-for arg in "$@"; do
-    case "$arg" in
-        --dry-run) DRY_RUN=1 ;;
-        --yes|-y) ASSUME_YES=1 ;;
-        --no-profile) SKIP_PROFILE=1 ;;
-        -h|--help) echo "Options: --dry-run  --yes  --no-profile"; exit 0 ;;
-        *) echo "Unknown option: $arg"; exit 1 ;;
-    esac
-done
-
 # ---------------------------------------------------------------- root / user
 if [ "$(id -u)" -ne 0 ]; then
     echo "Run as root, e.g.:"
@@ -49,14 +36,13 @@ fi
 
 # ---------------------------------------------------------------- helpers
 # Questions are read from the terminal, so it also works with "curl | sh".
-if [ "$ASSUME_YES" -eq 0 ] && ! [ -r /dev/tty ]; then
-    echo "No terminal available for questions. Use --yes or --dry-run."
+if ! [ -r /dev/tty ]; then
+    echo "No terminal available for questions."
     exit 1
 fi
 
 ask()   # ask "question" default(y|n)
 {
-    [ "$ASSUME_YES" -eq 1 ] && { [ "$2" = "y" ]; return; }
     if [ "$2" = "y" ]; then hint="[Y/n]"; else hint="[y/N]"; fi
     while :; do
         printf '%s %s ' "$1" "$hint"
@@ -112,14 +98,19 @@ section() { printf '\n== %s ==\n' "$1"; }
 # ---------------------------------------------------------------- start
 echo "This will uninstall Microsoft Office for Mac 2011/2016/2019/2021/2024/365."
 echo "User: $TARGET_USER   Home: $USER_HOME"
-[ "$DRY_RUN" -eq 1 ] && echo "DRY RUN: nothing will be deleted."
+
+echo "You can first do a dry run: it only shows what would be removed."
+if ask "Dry run (show only, delete nothing)?" n; then
+    DRY_RUN=1
+    echo "DRY RUN: nothing will be deleted."
+fi
 
 if pgrep -x -f "Microsoft (Word|Excel|PowerPoint|Outlook|OneNote)" >/dev/null 2>&1; then
     echo "Office applications are still running. Please quit them first."
     ask "Continue anyway?" n || exit 1
 fi
 
-if [ "$SKIP_PROFILE" -eq 0 ] && [ "$ASSUME_YES" -eq 0 ]; then
+if [ "$SKIP_PROFILE" -eq 0 ]; then
     echo "Office also stores settings, containers and caches in your profile ($USER_HOME/Library)."
     ask "Clean the user profile too? (No = only system-wide files)" y || SKIP_PROFILE=1
 fi
