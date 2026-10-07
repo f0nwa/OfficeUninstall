@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-07 precheck2"
+SCRIPT_VERSION="2026-10-07 tcc"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -59,6 +59,7 @@ FOUND_PERSONAL=0
 KC_COUNT=0
 KC_RC=0
 DO_SYSTEM=0
+FAILED=""
 STEP_TITLE=""
 step_end() { STEP_TITLE=""; }
 # The title is printed lazily, only when something is actually removed in the step.
@@ -187,14 +188,20 @@ delete()
             STEP_TITLE=""
         fi
         spin_start "$(tx "Removing" "Удаление") $1"
-        rm -rf "$1"
+        rm_err="$(rm -rf "$1" 2>&1)"
         rc=$?
         spin_stop
         if [ "$rc" -eq 0 ]; then
             ok "$1"
             REMOVED=$((REMOVED + 1))
         else
-            fail "$(tx "Cannot remove" "Не удалось удалить") $1"
+            case "$rm_err" in
+                *"Operation not permitted"*|*"Permission denied"*)
+                    fail "$(tx "Access denied by macOS" "macOS не дала доступ"): $1"
+                    FAILED="$FAILED
+$1" ;;
+                *) fail "$(tx "Cannot remove" "Не удалось удалить") $1" ;;
+            esac
         fi
     fi
 }
@@ -508,6 +515,36 @@ keychain_cleanup()
     rm -f "$LIST"
 }
 
+# ---------------------------------------------------------------- access retry
+# macOS protects other apps' data (TCC): Terminal may need the user's permission.
+retry_failed()
+{
+    attempt=0
+    while [ -n "$FAILED" ] && [ "$attempt" -lt 3 ]; do
+        attempt=$((attempt + 1))
+        count="$(printf '%s\n' "$FAILED" | grep -c .)"
+        title "$(tx "Access to some items was denied" "Доступ к части элементов не получен")"
+        info "$(tx "Items not removed: $count." "Не удалено элементов: $count.")"
+        if [ "$attempt" -eq 1 ]; then
+            info "$(tx "If macOS showed 'Terminal wants to access data of other apps', click Allow." "Если macOS показала окно «Терминал запрашивает доступ к данным других приложений», нажмите «Разрешить».")"
+        else
+            info "$(tx "Grant Full Disk Access: System Settings > Privacy & Security > Full Disk Access > enable Terminal." "Выдайте полный доступ к диску: Системные настройки > Конфиденциальность и безопасность > Полный доступ к диску > включите Терминал.")"
+            info "$(tx "Then fully quit Terminal (Cmd+Q), open it again and run the script again." "После этого полностью закройте Терминал (Cmd+Q), откройте снова и запустите скрипт ещё раз.")"
+            if ask "$(tx "Open the Full Disk Access settings now?" "Открыть настройки полного доступа к диску?")" y; then
+                as_user open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" >/dev/null 2>&1
+            fi
+        fi
+        ask "$(tx "Try to remove these items again?" "Повторить удаление этих элементов?")" y || return 0
+        pending="$FAILED"
+        FAILED=""
+        while IFS= read -r p; do
+            [ -n "$p" ] && delete "$p"
+        done <<EOF
+$pending
+EOF
+    done
+}
+
 # ---------------------------------------------------------------- main
 # Cleanup of temporary files on exit
 trap 'spin_stop; [ -n "${LIST:-}" ] && rm -f "$LIST"' EXIT
@@ -580,7 +617,12 @@ fi
 # ---- 3. removal
 if [ "$CLEAN_PROFILE" -eq 1 ] || [ "$DO_SYSTEM" -eq 1 ]; then
     [ "$DO_BACKUP" -eq 1 ] && do_backup
+    if [ "$CLEAN_PROFILE" -eq 1 ]; then
+        printf '\n'
+        warn "$(tx "macOS may show: 'Terminal wants to access data of other apps'. Click Allow, otherwise app containers cannot be removed." "macOS может показать окно «Терминал запрашивает доступ к данным других приложений». Нажмите «Разрешить», иначе контейнеры приложений не удалятся.")"
+    fi
     remove_all
+    retry_failed
 fi
 if [ "$FOUND_PROFILE" -gt 0 ] && [ "$CLEAN_PROFILE" -eq 0 ]; then
     printf '\n'
