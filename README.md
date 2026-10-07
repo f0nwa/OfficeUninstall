@@ -5,7 +5,7 @@
  1. Закройте все приложения Office.
  2. Скачайте скрипт и прочитайте его:
 ```
-curl -O https://raw.githubusercontent.com/f0nwa/officeuninstall/claude/admiring-tesla-itpkxw/office_uninstaller.sh
+curl -O https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh
 ```
  3. Посмотрите, что будет удалено (ничего не удаляется):
 ```
