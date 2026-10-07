@@ -6,6 +6,7 @@
 # Usage:  sudo sh office_uninstaller.sh [--dry-run] [--yes]
 #   --dry-run  only show what would be removed, delete nothing
 #   --yes      do not ask questions, remove every category except personal data
+#   --no-profile  do not touch anything inside the user's home folder (~/Library ...)
 #
 # Reference:
 # 1.https://support.microsoft.com/en-us/kb/2398768
@@ -13,10 +14,12 @@
 
 DRY_RUN=0
 ASSUME_YES=0
+SKIP_PROFILE=0
 for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN=1 ;;
         --yes|-y) ASSUME_YES=1 ;;
+        --no-profile) SKIP_PROFILE=1 ;;
         -h|--help) sed -n '2,8p' "$0" 2>/dev/null; exit 0 ;;
         *) echo "Unknown option: $arg"; exit 1 ;;
     esac
@@ -68,6 +71,9 @@ ask()   # ask "question" default(y|n)
 REMOVED=0
 delete()
 {
+    if [ "$SKIP_PROFILE" -eq 1 ]; then
+        case "$1" in "$USER_HOME"/*) return ;; esac
+    fi
     if [ -e "$1" ] || [ -L "$1" ]; then
         if [ "$DRY_RUN" -eq 1 ]; then
             echo "[dry-run] would remove $1"
@@ -111,6 +117,12 @@ if pgrep -x -f "Microsoft (Word|Excel|PowerPoint|Outlook|OneNote)" >/dev/null 2>
     echo "Office applications are still running. Please quit them first."
     ask "Continue anyway?" n || exit 1
 fi
+
+if [ "$SKIP_PROFILE" -eq 0 ] && [ "$ASSUME_YES" -eq 0 ]; then
+    echo "Office also stores settings, containers and caches in your profile ($USER_HOME/Library)."
+    ask "Clean the user profile too? (No = only system-wide files)" y || SKIP_PROFILE=1
+fi
+[ "$SKIP_PROFILE" -eq 1 ] && echo "User profile will NOT be touched."
 
 ask "Continue?" y || exit 0
 
