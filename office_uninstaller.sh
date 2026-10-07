@@ -3,31 +3,19 @@
 # Author : jim ye
 # Interactive uninstaller for Microsoft Office for Mac 2011/2016/2019/2021/2024/365
 #
-# Usage:  sudo sh office_uninstaller.sh [--dry-run] [--yes]
-#   --dry-run  only show what would be removed, delete nothing
-#   --yes      do not ask questions, remove every category except personal data
-#   --no-profile  do not touch anything inside the user's home folder (~/Library ...)
+# Usage:  sudo sh office_uninstaller.sh
+# No options: the script asks everything interactively (dry run, profile, each category).
 #
 # Reference:
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
 DRY_RUN=0
-ASSUME_YES=0
 SKIP_PROFILE=0
-for arg in "$@"; do
-    case "$arg" in
-        --dry-run) DRY_RUN=1 ;;
-        --yes|-y) ASSUME_YES=1 ;;
-        --no-profile) SKIP_PROFILE=1 ;;
-        -h|--help) sed -n '2,8p' "$0" 2>/dev/null; exit 0 ;;
-        *) echo "Unknown option: $arg"; exit 1 ;;
-    esac
-done
-
 # ---------------------------------------------------------------- root / user
 if [ "$(id -u)" -ne 0 ]; then
-    echo "Run as root:  sudo sh $0"
+    echo "Run as root, e.g.:"
+    echo "  sudo sh -c \"\$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh)\""
     exit 1
 fi
 
@@ -48,18 +36,17 @@ fi
 
 # ---------------------------------------------------------------- helpers
 # Questions are read from the terminal, so it also works with "curl | sh".
-if [ "$ASSUME_YES" -eq 0 ] && ! [ -r /dev/tty ]; then
-    echo "No terminal available for questions. Use --yes or --dry-run."
+if ! [ -r /dev/tty ]; then
+    echo "No terminal available for questions."
     exit 1
 fi
 
 ask()   # ask "question" default(y|n)
 {
-    [ "$ASSUME_YES" -eq 1 ] && { [ "$2" = "y" ]; return; }
     if [ "$2" = "y" ]; then hint="[Y/n]"; else hint="[y/N]"; fi
     while :; do
         printf '%s %s ' "$1" "$hint"
-        read answer < /dev/tty
+        read answer < /dev/tty || exit 1
         case "$answer" in
             "") [ "$2" = "y" ]; return ;;
             y|Y|yes|YES) return 0 ;;
@@ -111,16 +98,21 @@ section() { printf '\n== %s ==\n' "$1"; }
 # ---------------------------------------------------------------- start
 echo "This will uninstall Microsoft Office for Mac 2011/2016/2019/2021/2024/365."
 echo "User: $TARGET_USER   Home: $USER_HOME"
-[ "$DRY_RUN" -eq 1 ] && echo "DRY RUN: nothing will be deleted."
+
+echo "You can first do a dry run: it only shows what would be removed."
+if ask "Dry run (show only, delete nothing)?" n; then
+    DRY_RUN=1
+    echo "DRY RUN: nothing will be deleted."
+fi
 
 if pgrep -x -f "Microsoft (Word|Excel|PowerPoint|Outlook|OneNote)" >/dev/null 2>&1; then
     echo "Office applications are still running. Please quit them first."
     ask "Continue anyway?" n || exit 1
 fi
 
-if [ "$SKIP_PROFILE" -eq 0 ] && [ "$ASSUME_YES" -eq 0 ]; then
+if [ "$SKIP_PROFILE" -eq 0 ]; then
     echo "Office also stores settings, containers and caches in your profile ($USER_HOME/Library)."
-    ask "Clean the user profile too? (No = only system-wide files)" y || SKIP_PROFILE=1
+    ask "Clean the user profile too? (No = only system-wide files)" n || SKIP_PROFILE=1
 fi
 [ "$SKIP_PROFILE" -eq 1 ] && echo "User profile will NOT be touched."
 
@@ -333,16 +325,91 @@ if ask "6. Remove OneDrive too? (skip if you still use it)" n; then
     delete "$USER_HOME/Library/Cookies/com.microsoft.onedriveupdater.binarycookies"
 fi
 
+# ---------------------------------------------------------------- keychain
+# Runs as the real user (the keychain belongs to the user, not to root).
+# Only metadata is listed, passwords are never read.
+as_user() { sudo -u "$TARGET_USER" "$@"; }
+
+keychain_cleanup()
+{
+    section "Keychain (Microsoft accounts and Office entries)"
+    LIST="$(mktemp)"
+    if ! as_user security dump-keychain 2>/dev/null | awk '
+        function val(line, key,   m) {
+            if (match(line, "\"" key "\"<[a-z]+>=\"")) {
+                m = substr(line, RSTART + RLENGTH)
+                sub(/"[^"]*$/, "", m)
+                return m
+            }
+            return ""
+        }
+        function flush() {
+            if (class == "") return
+            name = svce svr labl
+            low = tolower(name)
+            if (low ~ /microsoft|adal|msal|oneauth|office|onedrive/ && low !~ /edge|teams|remote desktop/)
+                printf "%s|%s|%s|%s|%s\n", class, svce, acct, svr, labl
+            class = svce = acct = svr = labl = ""
+        }
+        /^keychain:/ { flush() }
+        /^class: "genp"/ { class = "genp" }
+        /^class: "inet"/ { class = "inet" }
+        /"svce"</ { svce = val($0, "svce") }
+        /"acct"</ { acct = val($0, "acct") }
+        /"srvr"</ { svr = val($0, "srvr") }
+        /"labl"</ { labl = val($0, "labl") }
+        END { flush() }
+    ' | sort -u > "$LIST"; then
+        echo "Could not read the keychain (locked or no graphical session)."
+        rm -f "$LIST"
+        return 1
+    fi
+    if [ ! -s "$LIST" ]; then
+        echo "No Microsoft/Office entries found."
+        rm -f "$LIST"
+        return 0
+    fi
+    echo "Found entries (passwords are not read). macOS may ask you to allow the removal."
+    while IFS="|" read -r class svce acct svr labl; do
+        if [ "$class" = "genp" ]; then
+            desc="password: service='$svce' account='$acct' label='$labl'"
+        else
+            desc="internet password: server='$svr' account='$acct' label='$labl'"
+        fi
+        if ask "Delete $desc ?" n; then
+            if [ "$DRY_RUN" -eq 1 ]; then
+                echo "[dry-run] would delete keychain entry"
+            elif [ "$class" = "genp" ]; then
+                as_user security delete-generic-password -s "$svce" ${acct:+-a "$acct"} >/dev/null 2>&1 \
+                    && echo "Deleted" || echo "Not deleted (cancelled or no access)"
+            else
+                as_user security delete-internet-password -s "$svr" ${acct:+-a "$acct"} >/dev/null 2>&1 \
+                    && echo "Deleted" || echo "Not deleted (cancelled or no access)"
+            fi
+        fi
+    done < "$LIST"
+    rm -f "$LIST"
+}
+
+KEYCHAIN_DONE=0
+if ask "Search the keychain for Microsoft account / Office entries?" n; then
+    keychain_cleanup && KEYCHAIN_DONE=1
+fi
+
 # ---------------------------------------------------------------- summary
 printf '\nDone. %s item(s) %s.\n' "$REMOVED" "$([ "$DRY_RUN" -eq 1 ] && echo 'would be removed' || echo 'removed')"
 
-cat <<'TXT'
-
-Finish the uninstall manually:
+echo
+echo "Finish the uninstall manually:"
+if [ "$KEYCHAIN_DONE" -eq 0 ]; then
+    cat <<'TXT'
 1. Open Keychain Access and remove the entries
      Microsoft Office Identities Cache 2
      Microsoft Office Identities Settings 2
-2. Search the keychain for "ADAL" and remove all matching entries.
-3. Remove Office icons from the Dock (right-click > Options > Remove from Dock).
-4. Restart the computer.
+   Search the keychain for "ADAL" and remove all matching entries.
+TXT
+fi
+cat <<'TXT'
+- Remove Office icons from the Dock (right-click > Options > Remove from Dock).
+- Restart the computer.
 TXT
