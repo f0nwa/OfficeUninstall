@@ -405,8 +405,26 @@ if [ -n "$MISSING" ]; then
 fi
 
 # ---- 5. confirmation
-if ! ask "$(tx "Restore the Outlook profile from this backup?" "Восстановить профиль Outlook из этой копии?")" y \
-"$(tx "Files with the same names in the current Outlook folders will be replaced.
+# The question repeats which backup and what goes where: the backup list may be off screen by now.
+SRC_NAME="$(basename "$SRC")"
+# OfficeUninstall-backup-YYYYMMDD-HHMMSS -> DD.MM.YYYY HH:MM:SS (other folder names: no date)
+SRC_DATE="$(printf '%s' "$SRC_NAME" | sed -n 's/.*-\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)-\([0-9]\{2\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)$/\3.\2.\1 \4:\5:\6/p')"
+PLAN=""
+for name in $ITEMS; do
+    size="$(du -sh "$SRC/$name" 2>/dev/null | awk '{print $1}')"
+    shown_dest="$(dest_for "$name" | sed "s#^$USER_HOME#~#")"
+    PLAN="$PLAN  $name ($size)  →  $shown_dest
+"
+done
+if [ -n "$SRC_DATE" ]; then
+    ASK_TITLE="$(tx "Restore the Outlook profile from the backup made on $SRC_DATE?" "Восстановить профиль Outlook из копии от $SRC_DATE?")"
+else
+    ASK_TITLE="$(tx "Restore the Outlook profile from the backup $SRC_NAME?" "Восстановить профиль Outlook из копии $SRC_NAME?")"
+fi
+if ! ask "$ASK_TITLE" y \
+"$(tx "Backup:" "Копия:") $SRC
+$(tx "Will be restored:" "Будет восстановлено:")
+$PLAN$(tx "Files with the same names in the current Outlook folders will be replaced.
 A copy of the current data is saved to the Desktop first." "Файлы с теми же именами в текущих папках Outlook будут заменены.
 Перед этим копия текущих данных сохраняется на Рабочий стол.")"; then
     printf '\n'
