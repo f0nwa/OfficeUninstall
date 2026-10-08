@@ -1,5 +1,13 @@
 # Удаление Microsoft Office для Mac
 
+<p align="center">
+  <a href="https://github.com/f0nwa/OfficeUninstall/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/f0nwa/OfficeUninstall/ci.yml?branch=master&label=CI&logo=github&style=flat"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-007ec6?style=flat"></a>
+  <img alt="Platform: macOS" src="https://img.shields.io/badge/platform-macOS-000000?style=flat">
+  <img alt="Shell: POSIX sh" src="https://img.shields.io/badge/shell-POSIX%20sh-4c1?logo=gnometerminal&logoColor=white&style=flat">
+  <a href="https://www.shellcheck.net/"><img alt="Linted with ShellCheck" src="https://img.shields.io/badge/linted-shellcheck-dfb317?style=flat"></a>
+</p>
+
 Интерактивный shell-скрипт, который полностью удаляет Microsoft Office для Mac 2021/2024/365. Перед удалением он может сохранить данные Outlook, а второй скрипт вернёт их в новую установку.
 
 Скрипты проверены на Office 2021, 2024 и 365. Пути более старых версий (2011, 2016, 2019) в скрипт тоже заложены, но на этих версиях работа не проверялась.

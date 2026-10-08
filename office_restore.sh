@@ -163,7 +163,7 @@ ensure_disk_access()
         while [ "$tries" -lt 3 ]; do
             tries=$((tries + 1))
             printf '  %s›%s %s' "$YELLOW" "$RESET" "$(tx "Press Enter when access is granted... " "Нажмите Enter, когда доступ выдан... ")"
-            read dummy < /dev/tty || exit 1
+            read -r _ < /dev/tty || exit 1
             if can_read_tcc; then
                 printf '  %s✓ %s%s\n' "$GREEN" "$(tx "Access granted." "Доступ получен.")" "$RESET"
                 FDA_GRANTED_NOW=1
@@ -400,7 +400,7 @@ if [ -n "$MISSING" ]; then
     while [ -n "$(running_office)" ]; do
         info "$(tx "Quit Outlook now (Cmd+Q)." "Закройте Outlook (Cmd+Q).")"
         printf '  %s›%s %s' "$YELLOW" "$RESET" "$(tx "Press Enter when Outlook is closed... " "Нажмите Enter, когда Outlook закрыт... ")"
-        read dummy < /dev/tty || exit 1
+        read -r _ < /dev/tty || exit 1
     done
 fi
 

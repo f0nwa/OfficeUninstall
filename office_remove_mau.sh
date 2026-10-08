@@ -22,9 +22,9 @@ FAILED=0
 ESC="$(printf '\033')"
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
     CYAN="${ESC}[36m"; BOLD="${ESC}[1m"; GREEN="${ESC}[32m"; YELLOW="${ESC}[33m"
-    RED="${ESC}[31m"; DETAIL=""; MAGENTA="${ESC}[35m"; RESET="${ESC}[0m"
+    RED="${ESC}[31m"; DETAIL=""; RESET="${ESC}[0m"
 else
-    CYAN=""; BOLD=""; GREEN=""; YELLOW=""; RED=""; DETAIL=""; MAGENTA=""; RESET=""
+    CYAN=""; BOLD=""; GREEN=""; YELLOW=""; RED=""; DETAIL=""; RESET=""
 fi
 
 # ---------------------------------------------------------------- language

@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check (sh -n)
+        run: |
+          for f in *.sh; do
+            echo "sh -n $f"
+            sh -n "$f"
+          done
+      - name: ShellCheck (POSIX sh, warnings and errors)
+        run: shellcheck -s sh -S warning *.sh
