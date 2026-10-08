@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 backup-retry"
+SCRIPT_VERSION="2026-10-08 dock-recent"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -262,16 +262,20 @@ PLISTBUDDY=/usr/libexec/PlistBuddy
 DOCK_PLIST="$USER_HOME/Library/Preferences/com.apple.dock.plist"
 DOCK_REMOVED=0
 
-# Prints "index|name" for Dock icons of Office apps, highest index first
-# (deleting from the end keeps the lower indexes valid).
+# Dock arrays with app icons: pinned apps and the "recent applications" section.
+DOCK_ARRAYS="persistent-apps recent-apps"
+
+# Prints "array|index|name" for Dock icons of Office apps in array $1, highest index
+# first (deleting from the end keeps the lower indexes valid).
 dock_office_icons()
 {
+    arr="$1"
     [ -f "$DOCK_PLIST" ] && [ -x "$PLISTBUDDY" ] || return 0
-    n="$(as_user "$PLISTBUDDY" -c "Print :persistent-apps" "$DOCK_PLIST" 2>/dev/null | grep -c '^    Dict {')"
+    n="$(as_user "$PLISTBUDDY" -c "Print :$arr" "$DOCK_PLIST" 2>/dev/null | grep -c '^    Dict {')"
     [ "${n:-0}" -gt 0 ] || return 0
     i=$((n - 1))
     while [ "$i" -ge 0 ]; do
-        url="$(as_user "$PLISTBUDDY" -c "Print :persistent-apps:$i:tile-data:file-data:_CFURLString" "$DOCK_PLIST" 2>/dev/null)"
+        url="$(as_user "$PLISTBUDDY" -c "Print :$arr:$i:tile-data:file-data:_CFURLString" "$DOCK_PLIST" 2>/dev/null)"
         name=""
         case "$url" in
             *"Microsoft%20Word.app"*) name="Microsoft Word" ;;
@@ -281,14 +285,20 @@ dock_office_icons()
             *"Microsoft%20OneNote.app"*) name="Microsoft OneNote" ;;
             */OneDrive.app*) name="OneDrive" ;;
         esac
-        [ -n "$name" ] && printf '%s|%s\n' "$i" "$name"
+        [ -n "$name" ] && printf '%s|%s|%s\n' "$arr" "$i" "$name"
         i=$((i - 1))
     done
 }
 
 remove_dock_icons()
 {
-    icons="$(dock_office_icons)"
+    icons=""
+    for arr in $DOCK_ARRAYS; do
+        found="$(dock_office_icons "$arr")"
+        [ -n "$found" ] && icons="$icons$found
+"
+    done
+    icons="$(printf '%s' "$icons" | grep .)"
     [ -n "$icons" ] || return 0
     if [ "$MODE" = "scan" ]; then
         FOUND_SYSTEM=$((FOUND_SYSTEM + $(printf '%s\n' "$icons" | grep -c .)))
@@ -296,14 +306,18 @@ remove_dock_icons()
     fi
     [ "$DO_SYSTEM" -eq 1 ] || return 0
     title "Dock"
-    while IFS='|' read -r idx name; do
+    while IFS='|' read -r arr idx name; do
         [ -n "$idx" ] || continue
-        if as_user "$PLISTBUDDY" -c "Delete :persistent-apps:$idx" "$DOCK_PLIST" >/dev/null 2>&1; then
-            ok "$(tx "Removed icon" "Удалена иконка"): $name"
+        case "$arr" in
+            recent-apps) where="$(tx "recent" "недавние")" ;;
+            *) where="$(tx "pinned" "закреплена")" ;;
+        esac
+        if as_user "$PLISTBUDDY" -c "Delete :$arr:$idx" "$DOCK_PLIST" >/dev/null 2>&1; then
+            ok "$(tx "Removed icon" "Удалена иконка"): $name ($where)"
             REMOVED=$((REMOVED + 1))
             DOCK_REMOVED=$((DOCK_REMOVED + 1))
         else
-            fail "$(tx "Cannot remove icon" "Не удалось удалить иконку"): $name"
+            fail "$(tx "Cannot remove icon" "Не удалось удалить иконку"): $name ($where)"
         fi
     done <<EOF
 $icons
