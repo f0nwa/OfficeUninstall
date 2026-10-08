@@ -145,6 +145,7 @@ can_read_tcc()
 # macOS does not show a dialog for Full Disk Access and does not let a program grant
 # it: open the Full Disk Access pane, wait, check again. Restarting the terminal is
 # not required: choose "Later" if macOS offers it.
+FDA_GRANTED_NOW=0   # 1 only when the user granted Full Disk Access during this run
 ensure_disk_access()
 {
     can_read_tcc && return 0
@@ -165,6 +166,7 @@ ensure_disk_access()
             read dummy < /dev/tty || exit 1
             if can_read_tcc; then
                 printf '  %s✓ %s%s\n' "$GREEN" "$(tx "Access granted." "Доступ получен.")" "$RESET"
+                FDA_GRANTED_NOW=1
                 return 0
             fi
             warn "$(tx "Access is not visible to the script yet. Make sure the switch next to $app is on." "Скрипт пока не видит доступ. Убедитесь, что переключатель рядом с $app включён.")"
@@ -466,6 +468,10 @@ if [ "$BAD" -eq 0 ]; then
     info "$(tx "- Start Outlook: the profile and local data should be back." "- Запустите Outlook: профиль и локальные данные должны вернуться.")"
     info "$(tx "- Mail from IMAP, Exchange and Microsoft 365 is pulled from the server again, you may need to sign in once more." "- Почта IMAP, Exchange и Microsoft 365 подтянется с сервера заново, возможно, придётся ещё раз войти в аккаунт.")"
     info "$(tx "- Keep the backup folder until you are sure everything is in place." "- Не удаляйте папку с копией, пока не убедитесь, что всё на месте.")"
+    # Full Disk Access is a broad permission: suggest taking it back, but only if this run asked for it.
+    if [ "$FDA_GRANTED_NOW" -eq 1 ]; then
+        info "$(tx "- Full Disk Access for $(terminal_app_name) was needed only while the script ran. You can turn it off: System Settings > Privacy & Security > Full Disk Access." "- Доступ к диску для $(terminal_app_name) был нужен только на время работы скрипта. Его можно отключить: Системные настройки > Конфиденциальность и безопасность > Полный доступ к диску.")"
+    fi
     [ "$SAFE_USED" -eq 1 ] && info "$(tx "- The data that was in Outlook before the restore is in" "- Данные, которые были в Outlook до восстановления, лежат в") ${MAGENTA}${SAFE}${RESET} $(tx "(can be deleted when you do not need it)." "(можно удалить, когда не понадобится).")"
 else
     printf '%s%s%s%s\n' "$BOLD" "$RED" "$(tx "The restore is incomplete. Failed folders:" "Восстановление неполное. Не удалось папок:") $BAD" "$RESET"

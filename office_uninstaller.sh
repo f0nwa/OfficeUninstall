@@ -171,6 +171,7 @@ ask()
 # A container left with nothing but the system metadata file (macOS keeps it and
 # does not let anyone remove it) holds no data: treat it as already gone.
 NO_FDA=0
+FDA_GRANTED_NOW=0   # 1 only when the user granted Full Disk Access during this run
 is_hollow()
 {
     [ -d "$1" ] || return 1
@@ -750,6 +751,7 @@ ensure_disk_access()
             read dummy < /dev/tty || exit 1
             if can_read_tcc; then
                 printf '  %s✓ %s%s\n' "$GREEN" "$(tx "Access granted." "Доступ получен.")" "$RESET"
+                FDA_GRANTED_NOW=1
                 return 0
             fi
             warn "$(tx "Access is not visible to the script yet. Make sure the switch next to $app is on." "Скрипт пока не видит доступ. Убедитесь, что переключатель рядом с $app включён.")"
@@ -931,5 +933,11 @@ if [ "$REMOVED" -gt 0 ] || [ "$KEYCHAIN_DONE" -eq 0 ]; then
         fi
         info "$(tx "- Restarting the computer is recommended, especially before reinstalling Office (not required otherwise)." "- Перезагрузка рекомендуется, особенно перед повторной установкой Office (в остальных случаях необязательна).")"
     fi
+fi
+# Full Disk Access is a broad permission: suggest taking it back, but only if this run asked for it.
+if [ "$FDA_GRANTED_NOW" -eq 1 ]; then
+    title "$(tx "Disk access" "Доступ к диску")"
+    info "$(tx "Full Disk Access for $(terminal_app_name) was needed only while the script ran." "Доступ к диску для $(terminal_app_name) был нужен только на время работы скрипта.")"
+    info "$(tx "You can turn it off: System Settings > Privacy & Security > Full Disk Access > switch off $(terminal_app_name)." "Его можно отключить: Системные настройки > Конфиденциальность и безопасность > Полный доступ к диску > выключите переключатель рядом с $(terminal_app_name).")"
 fi
 printf '\n'
