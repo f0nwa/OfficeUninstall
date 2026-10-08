@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 fda5"
+SCRIPT_VERSION="2026-10-08 fda6"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -170,11 +170,9 @@ ask()
 # ---------------------------------------------------------------- delete helpers
 # A container left with nothing but the system metadata file (macOS keeps it and
 # does not let anyone remove it) holds no data: treat it as already gone.
-SKIP_HOLLOW=0     # 1 during the quick pre-scan: do not read inside app containers
 NO_FDA=0
 is_hollow()
 {
-    [ "$SKIP_HOLLOW" -eq 1 ] && return 1
     [ -d "$1" ] || return 1
     hollow_out="$(find "$1" -mindepth 1 ! -name '.com.apple.containermanagerd.metadata.plist' 2>/dev/null)"
     [ $? -eq 0 ] && [ -z "$hollow_out" ]
@@ -650,8 +648,8 @@ ensure_disk_access()
     can_read_tcc && return 0
     app="$(terminal_app_name)"
     title "$(tx "Disk access for $app" "Доступ к диску для $app")"
-    warn "$(tx "To check and remove Office data macOS needs Full Disk Access for $app." "Чтобы проверить и удалить данные Office, macOS требуется «Полный доступ к диску» для $app.")"
-    info "$(tx "Without it macOS asks for access to each app's data separately and some data cannot be removed." "Без него macOS будет отдельно спрашивать доступ к данным каждого приложения, а часть данных удалить не получится.")"
+    warn "$(tx "To find all Office leftovers macOS needs Full Disk Access for $app." "Чтобы найти все следы Office, macOS требуется «Полный доступ к диску» для $app.")"
+    info "$(tx "Without it macOS hides the contents of app folders, asks for access to each app's data separately and some data cannot be found or removed." "Без него macOS скрывает содержимое папок приложений, отдельно спрашивает доступ к данным каждого приложения, а часть данных не найти и не удалить.")"
     if ask "$(tx "Open System Settings and grant access now?" "Открыть Системные настройки и выдать доступ сейчас?")" y; then
         as_user open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" >/dev/null 2>&1
         info "$(tx "1. In the window that opened, enable the switch next to $app" "1. В открывшемся окне включите переключатель рядом с $app")"
@@ -725,18 +723,9 @@ info "$(tx "Language" "Язык"): $LANG_UI   $(tx "Script version" "Верси�
 
 
 # ---- 1. check what exists before asking anything
-# Quick pre-scan without reading inside app containers: if Office is not there at all,
-# there is no point in asking for disk access.
-MODE=scan
-SKIP_HOLLOW=1
-remove_all
-SKIP_HOLLOW=0
-MODE=run
-if [ "$FOUND_SYSTEM" -gt 0 ] || [ "$FOUND_PROFILE" -gt 0 ]; then
-    ensure_disk_access
-fi
-FOUND_SYSTEM=0
-FOUND_PROFILE=0
+# Full Disk Access first: without it macOS hides the contents of app containers and the
+# scan cannot find all leftovers.
+ensure_disk_access
 printf '\n'
 if [ "$NO_FDA" -eq 1 ]; then
     info "$(tx "macOS may ask: 'Terminal wants to access data of other apps'. Click Allow: nothing is removed at this step." "macOS может спросить: «Терминал запрашивает доступ к данным других приложений». Нажмите «Разрешить»: на этом шаге ничего не удаляется.")"
