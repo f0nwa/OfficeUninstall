@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-07 hollow"
+SCRIPT_VERSION="2026-10-08 research"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -256,7 +256,9 @@ OFFICE_IDS="com.microsoft.Word com.microsoft.Excel com.microsoft.Powerpoint
 com.microsoft.Outlook com.microsoft.onenote com.microsoft.office
 com.microsoft.Office com.microsoft.autoupdate com.microsoft.errorreporting
 com.microsoft.netlib com.microsoft.RMS com.microsoft.Messenger
-com.microsoft.Communicator com.microsoft.openxml"
+com.microsoft.Communicator com.microsoft.openxml
+com.microsoft.PowerPoint com.microsoft.outlook com.microsoft.excel com.microsoft.word
+com.microsoft.OneNote"
 ONEDRIVE_IDS="com.microsoft.OneDrive com.microsoft.onedrive"
 
 deleteids()   # deleteids DIR "ID LIST"
@@ -272,6 +274,66 @@ PERSONAL="$USER_HOME/Library/Group Containers/UBF8T346G9.Office
 $USER_HOME/Library/Containers/com.microsoft.Outlook
 $USER_HOME/Documents/Microsoft ~ Data
 $USER_HOME/Documents/Microsoft User Data"
+
+# ---------------------------------------------------------------- receipts and services
+# Installer receipts of the Office packages (com.microsoft.package.*): the file mask
+# alone does not catch them, "pkgutil --forget" removes them from the receipt database.
+office_pkgs()
+{
+    pkgutil --pkgs 2>/dev/null | grep -E '^com\.microsoft\.(package|pkg)\.' | grep -v -i 'teams'
+}
+
+forget_receipts()
+{
+    pkgs="$(office_pkgs)"
+    [ -n "$pkgs" ] || return 0
+    while IFS= read -r pkg; do
+        [ -n "$pkg" ] || continue
+        if [ "$MODE" = "scan" ]; then
+            FOUND_SYSTEM=$((FOUND_SYSTEM + 1))
+            continue
+        fi
+        [ "$DO_SYSTEM" -eq 1 ] || continue
+        if [ -n "$STEP_TITLE" ]; then
+            title "$STEP_TITLE"
+            STEP_TITLE=""
+        fi
+        if pkgutil --forget "$pkg" >/dev/null 2>&1; then
+            ok "pkgutil: $pkg"
+            REMOVED=$((REMOVED + 1))
+        else
+            fail "pkgutil: $pkg"
+        fi
+    done <<EOF
+$pkgs
+EOF
+}
+
+# Unload background jobs and stop helper processes, otherwise they keep running
+# (and may recreate files) until the next reboot.
+stop_services()
+{
+    stopped=0
+    for label in com.microsoft.office.licensing.helper com.microsoft.office.licensingV2.helper \
+                 com.microsoft.autoupdate.helper com.microsoft.onedriveupdaterdaemon; do
+        if launchctl print "system/$label" >/dev/null 2>&1; then
+            launchctl bootout "system/$label" >/dev/null 2>&1
+            stopped=$((stopped + 1))
+        fi
+    done
+    uid="$(id -u "$TARGET_USER" 2>/dev/null)"
+    if [ -n "$uid" ] && launchctl print "gui/$uid/com.microsoft.update.agent" >/dev/null 2>&1; then
+        launchctl bootout "gui/$uid/com.microsoft.update.agent" >/dev/null 2>&1
+        stopped=$((stopped + 1))
+    fi
+    for proc in "Microsoft AutoUpdate" "Microsoft Update Assistant" "Microsoft Error Reporting" "OneDrive"; do
+        pkill -x "$proc" >/dev/null 2>&1 && stopped=$((stopped + 1))
+    done
+    if [ "$stopped" -gt 0 ]; then
+        title "$(tx "Background services" "Фоновые службы")"
+        ok "$(tx "Stopped Microsoft background services and updaters:" "Остановлены фоновые службы и обновлялки Microsoft:") $stopped"
+    fi
+}
 
 # ---------------------------------------------------------------- backup
 do_backup()
@@ -350,6 +412,7 @@ done
 
 step "Application Support, $(tx "caches, logs" "кэши, логи")"
 delete "/Library/Application Support/Microsoft/MAU2.0"
+delete "/Library/Application Support/Microsoft/MERP2.0"
 delete "/Library/Application Support/Microsoft/Office"
 delete "$USER_HOME/Library/Application Support/Microsoft/Office"
 for app in "Microsoft Communicator" "Microsoft Messenger" "Microsoft Outlook" \
@@ -467,6 +530,7 @@ deletefiles /Library/Receipts/Office2011_
 deletefiles /Library/Receipts/Office2016_
 deletefiles /Library/Receipts/Office2019_
 deletefiles /private/var/db/receipts/com.microsoft.office
+forget_receipts
 delete /Library/Fonts/Microsoft
 deletefiles "/Library/Internet Plug-Ins/SharePoint"
 
@@ -478,6 +542,7 @@ for g in UBF8T346G9.OfficeOneDriveSyncIntegration UBF8T346G9.OneDriveStandaloneS
     delete "$USER_HOME/Library/Group Containers/$g"
 done
 deleteids "$USER_HOME/Library/Preferences" "$ONEDRIVE_IDS"
+deleteids "/Library/Preferences" "$ONEDRIVE_IDS"
 deleteids "$USER_HOME/Library/Caches" "$ONEDRIVE_IDS"
 deletefiles "$USER_HOME/Library/Application Support/CrashReporter/OneDrive"
 deletefiles "$USER_HOME/Library/Logs/DiagnosticReports/OneDrive"
@@ -674,6 +739,7 @@ if [ "$CLEAN_PROFILE" -eq 1 ] || [ "$DO_SYSTEM" -eq 1 ]; then
         printf '\n'
         warn "$(tx "macOS may show: 'Terminal wants to access data of other apps'. Click Allow, otherwise app containers cannot be removed." "macOS может показать окно «Терминал запрашивает доступ к данным других приложений». Нажмите «Разрешить», иначе контейнеры приложений не удалятся.")"
     fi
+    [ "$DO_SYSTEM" -eq 1 ] && stop_services
     remove_all
     retry_failed
 fi
