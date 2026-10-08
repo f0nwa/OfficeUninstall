@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 fda3"
+SCRIPT_VERSION="2026-10-08 fda6"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -170,6 +170,7 @@ ask()
 # ---------------------------------------------------------------- delete helpers
 # A container left with nothing but the system metadata file (macOS keeps it and
 # does not let anyone remove it) holds no data: treat it as already gone.
+NO_FDA=0
 is_hollow()
 {
     [ -d "$1" ] || return 1
@@ -638,40 +639,17 @@ can_read_tcc()
     head -c 1 "/Library/Application Support/com.apple.TCC/TCC.db" >/dev/null 2>&1
 }
 
-# Sets DENIED: protected Office folders the terminal cannot read, plus a marker line
-# when Full Disk Access is missing altogether.
-probe_protected()
-{
-    DENIED=""
-    can_read_tcc || DENIED="FULL_DISK_ACCESS"
-    for d in "$USER_HOME"/Library/Containers/com.microsoft.* "$USER_HOME"/Library/Group\ Containers/UBF8T346G9.*; do
-        [ -d "$d" ] || continue
-        if ! ls -A "$d" >/dev/null 2>&1; then
-            DENIED="$DENIED
-$d"
-        fi
-    done
-    DENIED="$(printf '%s\n' "$DENIED" | grep .)"
-}
-
-# macOS does not show a dialog for data protected this way and does not let a
-# program grant the access: open the Full Disk Access pane, wait, check again.
+# macOS does not show a dialog for Full Disk Access and does not let a program grant
+# it: open the Full Disk Access pane, wait, check again. Asked once, before the scan,
+# so the separate "access data of other apps" prompts do not appear later.
 # Restarting the terminal is not required: choose "Later" if macOS offers it.
 ensure_disk_access()
 {
-    probe_protected
-    [ -n "$DENIED" ] || return 0
+    can_read_tcc && return 0
     app="$(terminal_app_name)"
     title "$(tx "Disk access for $app" "Доступ к диску для $app")"
-    warn "$(tx "To remove Office data macOS needs Full Disk Access for $app." "Чтобы удалить данные Office, macOS требуется «Полный доступ к диску» для $app.")"
-    folders="$(printf '%s\n' "$DENIED" | grep -v '^FULL_DISK_ACCESS$')"
-    if [ -n "$folders" ]; then
-        printf '%s\n' "$folders" | head -5 | while IFS= read -r d; do
-            info "  ${d#$USER_HOME/}"
-        done
-        cnt="$(printf '%s\n' "$folders" | grep -c .)"
-        [ "$cnt" -gt 5 ] && info "  $(tx "... and" "... и ещё") $((cnt - 5))"
-    fi
+    warn "$(tx "To find all Office leftovers macOS needs Full Disk Access for $app." "Чтобы найти все следы Office, macOS требуется «Полный доступ к диску» для $app.")"
+    info "$(tx "Without it macOS hides the contents of app folders, asks for access to each app's data separately and some data cannot be found or removed." "Без него macOS скрывает содержимое папок приложений, отдельно спрашивает доступ к данным каждого приложения, а часть данных не найти и не удалить.")"
     if ask "$(tx "Open System Settings and grant access now?" "Открыть Системные настройки и выдать доступ сейчас?")" y; then
         as_user open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" >/dev/null 2>&1
         info "$(tx "1. In the window that opened, enable the switch next to $app" "1. В открывшемся окне включите переключатель рядом с $app")"
@@ -683,8 +661,7 @@ ensure_disk_access()
             tries=$((tries + 1))
             printf '  %s›%s %s' "$YELLOW" "$RESET" "$(tx "Press Enter when access is granted... " "Нажмите Enter, когда доступ выдан... ")"
             read dummy < /dev/tty || exit 1
-            probe_protected
-            if [ -z "$DENIED" ]; then
+            if can_read_tcc; then
                 printf '  %s✓ %s%s\n' "$GREEN" "$(tx "Access granted." "Доступ получен.")" "$RESET"
                 return 0
             fi
@@ -693,7 +670,8 @@ ensure_disk_access()
         info "$(tx "If the switch is on but access is still not active, quit $app (Cmd+Q), open it again and run the script again." "Если переключатель включён, а доступа всё нет, закройте $app (Cmd+Q), откройте снова и запустите скрипт ещё раз.")"
     fi
     if ask "$(tx "Continue without access?" "Продолжить без доступа?")" n \
-    "$(tx "Part of the data will not be removed or backed up." "Часть данных не удастся удалить и скопировать в резервную копию.")"; then
+    "$(tx "macOS will ask for access to app data separately, part of the data may not be removed or backed up." "macOS будет отдельно спрашивать доступ к данным приложений, часть данных может не удалиться и не попасть в резервную копию.")"; then
+        NO_FDA=1
         return 0
     fi
     printf '\n'
@@ -745,7 +723,13 @@ info "$(tx "Language" "Язык"): $LANG_UI   $(tx "Script version" "Верси�
 
 
 # ---- 1. check what exists before asking anything
+# Full Disk Access first: without it macOS hides the contents of app containers and the
+# scan cannot find all leftovers.
+ensure_disk_access
 printf '\n'
+if [ "$NO_FDA" -eq 1 ]; then
+    info "$(tx "macOS may ask: 'Terminal wants to access data of other apps'. Click Allow: nothing is removed at this step." "macOS может спросить: «Терминал запрашивает доступ к данным других приложений». Нажмите «Разрешить»: на этом шаге ничего не удаляется.")"
+fi
 spin_start "$(tx "Checking what is installed..." "Проверяем, что есть на компьютере...")"
 MODE=scan
 remove_all
@@ -802,7 +786,6 @@ fi
 
 # ---- 3. removal
 if [ "$CLEAN_PROFILE" -eq 1 ] || [ "$DO_SYSTEM" -eq 1 ]; then
-    [ "$CLEAN_PROFILE" -eq 1 ] && ensure_disk_access
     if [ "$DO_BACKUP" -eq 1 ] && ! do_backup; then
         if ! ask "$(tx "Remove Outlook data without a complete backup?" "Удалить данные Outlook без полной резервной копии?")" n \
         "$(tx "Check the reasons above (Full Disk Access for Terminal, restart Terminal) and run the script again." "Проверьте причины выше (полный доступ к диску для Terminal, перезапуск Terminal) и запустите скрипт снова.")"; then
@@ -810,7 +793,7 @@ if [ "$CLEAN_PROFILE" -eq 1 ] || [ "$DO_SYSTEM" -eq 1 ]; then
             info "$(tx "Outlook data will be kept." "Данные Outlook будут сохранены.")"
         fi
     fi
-    if [ "$CLEAN_PROFILE" -eq 1 ]; then
+    if [ "$CLEAN_PROFILE" -eq 1 ] && [ "$NO_FDA" -eq 1 ]; then
         printf '\n'
         warn "$(tx "macOS may show: 'Terminal wants to access data of other apps'. Click Allow, otherwise app containers cannot be removed." "macOS может показать окно «Терминал запрашивает доступ к данным других приложений». Нажмите «Разрешить», иначе контейнеры приложений не удалятся.")"
     fi
