@@ -1,6 +1,8 @@
 # Удаление Microsoft Office для Mac
 
-Интерактивный shell-скрипт, который полностью удаляет Microsoft Office для Mac 2011/2016/2019/2021/2024/365. Перед удалением он может сохранить данные Outlook, а второй скрипт вернёт их в новую установку.
+Интерактивный shell-скрипт, который полностью удаляет Microsoft Office для Mac 2021/2024/365. Перед удалением он может сохранить данные Outlook, а второй скрипт вернёт их в новую установку.
+
+Скрипты проверены на Office 2021, 2024 и 365. Пути более старых версий (2011, 2016, 2019) в скрипт тоже заложены, но на этих версиях работа не проверялась.
 
 **Не знаете, с чего начать? [Пошаговая инструкция: переустановить Office начисто](docs/userguide/reinstall-office.md).**
 
@@ -162,7 +164,9 @@ Microsoft не предоставляет официальную програм�
 
 ## Microsoft Office for Mac uninstaller
 
-An interactive shell script that completely removes Microsoft Office for Mac 2011/2016/2019/2021/2024/365. Before removal it can save your Outlook data, and a second script puts it back into the new installation.
+An interactive shell script that completely removes Microsoft Office for Mac 2021/2024/365. Before removal it can save your Outlook data, and a second script puts it back into the new installation.
+
+The scripts were tested on Office 2021, 2024 and 365. The paths of older versions (2011, 2016, 2019) are still built into the script, but it has not been tested on them.
 
 **Not sure where to start? [Step-by-step guide: reinstall Office from scratch](docs/userguide/reinstall-office.md#english).**
 

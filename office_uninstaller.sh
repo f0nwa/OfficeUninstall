@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Author : jim ye
-# Interactive uninstaller for Microsoft Office for Mac 2011/2016/2019/2021/2024/365
+# Interactive uninstaller for Microsoft Office for Mac 2021/2024/365
+# (tested on these; paths of 2011/2016/2019 are included but not tested)
 #
 # Usage:  sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh)"
 #         (asks for the macOS password itself; "sudo sh -c ..." works too)
@@ -907,7 +908,7 @@ trap 'spin_stop; [ -n "${LIST:-}" ] && rm -f "$LIST"' EXIT
 
 [ -t 1 ] && clear
 title "$(tx "Microsoft Office for Mac uninstaller" "Удаление Microsoft Office для Mac")"
-info "$(tx "Versions: 2011 / 2016 / 2019 / 2021 / 2024 / 365" "Версии: 2011 / 2016 / 2019 / 2021 / 2024 / 365")"
+info "$(tx "Versions: 2021 / 2024 / 365 (2011 / 2016 / 2019 not tested)" "Версии: 2021 / 2024 / 365 (2011 / 2016 / 2019 не проверялись)")"
 info "$(tx "User" "Пользователь"): $TARGET_USER"
 info "$(tx "Home" "Домашняя папка"): $USER_HOME"
 info "$(tx "Language" "Язык"): $LANG_UI   $(tx "Script version" "Версия скрипта"): $SCRIPT_VERSION"
