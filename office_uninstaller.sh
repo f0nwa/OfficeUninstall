@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 research"
+SCRIPT_VERSION="2026-10-08 fda2"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -346,14 +346,26 @@ do_backup()
     while IFS= read -r p; do
         if [ -e "$p" ]; then
             spin_start "$(tx "Copying" "Копирование") $p"
-            ditto "$p" "$BACKUP/$(basename "$p")" 2>/dev/null
+            dest="$BACKUP/$(basename "$p")"
+            copy_err="$(ditto "$p" "$dest" 2>&1)"
             rc=$?
+            if [ "$rc" -ne 0 ]; then
+                # second try without extended attributes, ACLs and resource forks
+                copy_err="$(ditto --noextattr --noacl --norsrc --noqtn "$p" "$dest" 2>&1)"
+                rc=$?
+            fi
+            # The system metadata file of a container is protected and never needed in a backup.
+            real_err="$(printf '%s\n' "$copy_err" | grep -v 'containermanagerd.metadata.plist' | grep .)"
+            [ -z "$real_err" ] && rc=0
             spin_stop
             if [ "$rc" -eq 0 ]; then
                 ok "$p"
                 COPIED=$((COPIED + 1))
             else
                 fail "$(tx "Cannot copy" "Не удалось скопировать") $p"
+                printf '%s\n' "$real_err" | head -3 | while IFS= read -r line; do
+                    info "  $(printf '%s' "$line" | cut -c1-110)"
+                done
                 COPY_FAILED=$((COPY_FAILED + 1))
             fi
         fi
@@ -370,7 +382,7 @@ EOF
         fi
     fi
     if [ "$COPY_FAILED" -gt 0 ]; then
-        warn "$(tx "Backup is incomplete: macOS denied access to some Outlook data." "Резервная копия неполная: macOS не дала доступ к части данных Outlook.")"
+        warn "$(tx "Backup is incomplete: some Outlook data could not be copied (reasons above)." "Резервная копия неполная: часть данных Outlook скопировать не удалось (причины выше).")"
         return 1
     fi
     return 0
@@ -627,6 +639,70 @@ keychain_cleanup()
     rm -f "$LIST"
 }
 
+# ---------------------------------------------------------------- disk access
+# Name of the terminal app for hints (Terminal.app sets TERM_PROGRAM=Apple_Terminal).
+terminal_app_name()
+{
+    case "${TERM_PROGRAM:-}" in
+        ""|Apple_Terminal) printf 'Terminal' ;;
+        iTerm.app) printf 'iTerm' ;;
+        *) printf '%s' "$TERM_PROGRAM" ;;
+    esac
+}
+
+# Lists protected Office folders of the user that the terminal cannot read.
+# Result: DENIED (one path per line).
+probe_protected()
+{
+    DENIED=""
+    for d in "$USER_HOME"/Library/Containers/com.microsoft.* "$USER_HOME"/Library/Group\ Containers/UBF8T346G9.*; do
+        [ -d "$d" ] || continue
+        if ! ls -A "$d" >/dev/null 2>&1; then
+            DENIED="$DENIED
+$d"
+        fi
+    done
+    DENIED="$(printf '%s\n' "$DENIED" | grep .)"
+}
+
+# macOS does not show a dialog for data protected this way and does not let a
+# program grant the access: open the Full Disk Access pane, wait, check again.
+ensure_disk_access()
+{
+    probe_protected
+    [ -n "$DENIED" ] || return 0
+    app="$(terminal_app_name)"
+    title "$(tx "Access to app data" "Доступ к данным приложений")"
+    warn "$(tx "macOS does not let $app read some Office folders:" "macOS не даёт $app читать часть папок Office:")"
+    printf '%s\n' "$DENIED" | head -5 | while IFS= read -r d; do
+        info "  ${d#$USER_HOME/}"
+    done
+    cnt="$(printf '%s\n' "$DENIED" | grep -c .)"
+    [ "$cnt" -gt 5 ] && info "  $(tx "... and" "... и ещё") $((cnt - 5))"
+    info "$(tx "If macOS shows 'wants to access data of other apps', click Allow." "Если macOS покажет окно «запрашивает доступ к данным других приложений», нажмите «Разрешить».")"
+    info "$(tx "Otherwise access is granted manually: Full Disk Access for $app." "Иначе доступ выдаётся вручную: «Полный доступ к диску» для $app.")"
+    if ask "$(tx "Open System Settings and grant access now?" "Открыть Системные настройки и выдать доступ сейчас?")" y; then
+        as_user open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" >/dev/null 2>&1
+        info "$(tx "In the window that opened, enable $app (if it is not listed: '+' > Applications > Utilities > $app)." "В открывшемся окне включите $app (если его нет в списке: «+» → Программы → Утилиты → $app).")"
+        info "$(tx "If macOS offers to quit $app, choose 'Later', otherwise the script will stop." "Если macOS предложит завершить $app, выберите «Позже», иначе скрипт прервётся.")"
+        printf '  %s›%s %s' "$YELLOW" "$RESET" "$(tx "Press Enter when access is granted (or to continue without it)... " "Нажмите Enter, когда доступ выдан (или чтобы продолжить без него)... ")"
+        read dummy < /dev/tty || exit 1
+        probe_protected
+        if [ -z "$DENIED" ]; then
+            printf '  %s✓ %s%s\n' "$GREEN" "$(tx "Access granted." "Доступ получен.")" "$RESET"
+            return 0
+        fi
+        warn "$(tx "Access is not active yet. The permission applies after $app is restarted: quit it (Cmd+Q), open it again and run the script again." "Доступ пока не действует. Права применятся после перезапуска $app: закройте его (Cmd+Q), откройте снова и запустите скрипт ещё раз.")"
+    fi
+    if ask "$(tx "Continue without access?" "Продолжить без доступа?")" n \
+    "$(tx "Part of the data will not be removed or backed up." "Часть данных не удастся удалить и скопировать в резервную копию.")"; then
+        return 0
+    fi
+    printf '\n'
+    info "$(tx "Stopped. Grant access, restart $app and run the script again." "Остановлено. Выдайте доступ, перезапустите $app и запустите скрипт снова.")"
+    exit 0
+}
+
 # ---------------------------------------------------------------- access retry
 # macOS protects other apps' data (TCC): Terminal may need the user's permission.
 retry_failed()
@@ -728,9 +804,10 @@ fi
 
 # ---- 3. removal
 if [ "$CLEAN_PROFILE" -eq 1 ] || [ "$DO_SYSTEM" -eq 1 ]; then
+    [ "$CLEAN_PROFILE" -eq 1 ] && ensure_disk_access
     if [ "$DO_BACKUP" -eq 1 ] && ! do_backup; then
         if ! ask "$(tx "Remove Outlook data without a complete backup?" "Удалить данные Outlook без полной резервной копии?")" n \
-        "$(tx "Allow Terminal access (Full Disk Access) and run the script again to make a backup." "Выдайте Terminal доступ (полный доступ к диску) и запустите скрипт снова, чтобы сделать копию.")"; then
+        "$(tx "Check the reasons above (Full Disk Access for Terminal, restart Terminal) and run the script again." "Проверьте причины выше (полный доступ к диску для Terminal, перезапуск Terminal) и запустите скрипт снова.")"; then
             PROTECT_PERSONAL=1
             info "$(tx "Outlook data will be kept." "Данные Outlook будут сохранены.")"
         fi
