@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 dock-recent"
+SCRIPT_VERSION="2026-10-08 defender"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -56,9 +56,11 @@ MODE=run          # "scan": only count what exists, print and delete nothing
 FOUND_SYSTEM=0
 FOUND_PROFILE=0
 FOUND_PERSONAL=0
+FOUND_DEFENDER=0
 KC_COUNT=0
 KC_RC=0
 DO_SYSTEM=0
+DO_DEFENDER=0
 FAILED=""
 PROTECT_PERSONAL=0
 STEP_TITLE=""
@@ -181,6 +183,15 @@ is_hollow()
 
 is_personal() { printf '%s\n' "$PERSONAL" | grep -Fxq -- "$1"; }
 
+# Microsoft Defender is not a part of Office: it is counted and confirmed separately.
+is_defender_path()
+{
+    case "$1" in
+        *"Microsoft Defender"*|*/Microsoft/Defender*|*com.microsoft.wdav*|*com.microsoft.fresno*|*/mdatp) return 0 ;;
+    esac
+    return 1
+}
+
 delete()
 {
     case "$1" in
@@ -192,17 +203,25 @@ delete()
     fi
     if [ "$MODE" = "scan" ]; then
         if [ -e "$1" ] || [ -L "$1" ]; then
-            case "$1" in
-                "$USER_HOME"/*) FOUND_PROFILE=$((FOUND_PROFILE + 1)) ;;
-                *) FOUND_SYSTEM=$((FOUND_SYSTEM + 1)) ;;
-            esac
+            if is_defender_path "$1"; then
+                FOUND_DEFENDER=$((FOUND_DEFENDER + 1))
+            else
+                case "$1" in
+                    "$USER_HOME"/*) FOUND_PROFILE=$((FOUND_PROFILE + 1)) ;;
+                    *) FOUND_SYSTEM=$((FOUND_SYSTEM + 1)) ;;
+                esac
+            fi
         fi
         return
     fi
-    case "$1" in
-        "$USER_HOME"/*) [ "$CLEAN_PROFILE" -eq 1 ] || return ;;
-        *) [ "$DO_SYSTEM" -eq 1 ] || return ;;
-    esac
+    if is_defender_path "$1"; then
+        [ "$DO_DEFENDER" -eq 1 ] || return
+    else
+        case "$1" in
+            "$USER_HOME"/*) [ "$CLEAN_PROFILE" -eq 1 ] || return ;;
+            *) [ "$DO_SYSTEM" -eq 1 ] || return ;;
+        esac
+    fi
     if [ -e "$1" ] || [ -L "$1" ]; then
         if [ -n "$STEP_TITLE" ]; then
             title "$STEP_TITLE"
@@ -337,17 +356,32 @@ office_pkgs()
     pkgutil --pkgs 2>/dev/null | grep -E '^com\.microsoft\.(package|pkg)\.' | grep -v -i 'teams'
 }
 
-forget_receipts()
+# Installer receipts of Microsoft Defender (one package: com.microsoft.wdav*).
+defender_pkgs()
 {
-    pkgs="$(office_pkgs)"
+    pkgutil --pkgs 2>/dev/null | grep -E '^com\.microsoft\.wdav'
+}
+
+forget_receipts()   # forget_receipts [office_pkgs|defender_pkgs]
+{
+    list_fn="${1:-office_pkgs}"
+    pkgs="$("$list_fn")"
     [ -n "$pkgs" ] || return 0
     while IFS= read -r pkg; do
         [ -n "$pkg" ] || continue
         if [ "$MODE" = "scan" ]; then
-            FOUND_SYSTEM=$((FOUND_SYSTEM + 1))
+            if [ "$list_fn" = "defender_pkgs" ]; then
+                FOUND_DEFENDER=$((FOUND_DEFENDER + 1))
+            else
+                FOUND_SYSTEM=$((FOUND_SYSTEM + 1))
+            fi
             continue
         fi
-        [ "$DO_SYSTEM" -eq 1 ] || continue
+        if [ "$list_fn" = "defender_pkgs" ]; then
+            [ "$DO_DEFENDER" -eq 1 ] || continue
+        else
+            [ "$DO_SYSTEM" -eq 1 ] || continue
+        fi
         if [ -n "$STEP_TITLE" ]; then
             title "$STEP_TITLE"
             STEP_TITLE=""
@@ -454,6 +488,71 @@ EOF
         return 1
     fi
     return 0
+}
+
+# ---------------------------------------------------------------- Microsoft Defender
+# Defender for Mac is installed as a single package (com.microsoft.wdav). The official
+# uninstall script (it also deactivates the system extensions) is run first, then the
+# leftovers are removed with the usual delete helpers. Needs the step title set by step().
+DEFENDER_UNINSTALL="/Library/Application Support/Microsoft/Defender/uninstall/uninstall"
+
+defender_present()
+{
+    [ -e "/Library/Application Support/Microsoft/Defender" ] && return 0
+    ls -d /Applications/Microsoft\ Defender* >/dev/null 2>&1 && return 0
+    [ -n "$(defender_pkgs)" ]
+}
+
+stop_defender()
+{
+    [ -n "$STEP_TITLE" ] && { title "$STEP_TITLE"; STEP_TITLE=""; }
+    uid="$(id -u "$TARGET_USER" 2>/dev/null)"
+    launchctl bootout system/com.microsoft.fresno >/dev/null 2>&1
+    [ -n "$uid" ] && launchctl bootout "gui/$uid/com.microsoft.wdav.tray" >/dev/null 2>&1
+    for proc in "Microsoft Defender" wdavdaemon wdavdaemon_enterprise wdavdaemon_unprivileged; do
+        pkill -x "$proc" >/dev/null 2>&1
+    done
+    if [ -x "$DEFENDER_UNINSTALL" ]; then
+        spin_start "$(tx "Running the Defender uninstaller" "Запуск деинсталлятора Defender")"
+        un_err="$("$DEFENDER_UNINSTALL" </dev/null 2>&1)"
+        rc=$?
+        spin_stop
+        if [ "$rc" -eq 0 ]; then
+            ok "$(tx "Defender uninstaller finished" "Деинсталлятор Defender отработал")"
+        else
+            warn "$(tx "Defender uninstaller reported an error, leftovers will be removed by the script." "Деинсталлятор Defender сообщил об ошибке, остатки удалит скрипт.")"
+            printf '%s\n' "$un_err" | head -3 | while IFS= read -r line; do
+                info "  $line"
+            done
+        fi
+    fi
+}
+
+remove_defender()
+{
+step "Microsoft Defender"
+if [ "$MODE" != "scan" ] && [ "$DO_DEFENDER" -eq 1 ] && defender_present; then
+    stop_defender
+fi
+deletefiles "/Applications/Microsoft Defender"
+delete "/Library/Application Support/Microsoft/Defender"
+deletefiles /Library/LaunchDaemons/com.microsoft.fresno
+deletefiles /Library/LaunchDaemons/com.microsoft.wdav
+deletefiles /Library/LaunchAgents/com.microsoft.wdav
+deletefiles /Library/Preferences/com.microsoft.wdav
+deletefiles "$USER_HOME/Library/Preferences/com.microsoft.wdav"
+deletefiles "$USER_HOME/Library/Preferences/ByHost/com.microsoft.wdav"
+deletefiles "$USER_HOME/Library/Caches/com.microsoft.wdav"
+deletefiles "$USER_HOME/Library/Saved Application State/com.microsoft.wdav"
+delete /Library/Logs/Microsoft/mdatp
+delete /usr/local/bin/mdatp
+forget_receipts defender_pkgs
+if [ "$MODE" != "scan" ] && [ "$DO_DEFENDER" -eq 1 ]; then
+    if systemextensionsctl list 2>/dev/null | grep -qi 'com\.microsoft\.wdav'; then
+        [ -n "$STEP_TITLE" ] && { title "$STEP_TITLE"; STEP_TITLE=""; }
+        warn "$(tx "Defender system extensions are still registered. They disappear after a restart; if not: System Settings > General > Login Items & Extensions > Endpoint Security Extensions." "Системные расширения Defender всё ещё зарегистрированы. Они исчезнут после перезагрузки; если нет: Системные настройки > Основные > Объекты входа и расширения > Расширения Endpoint Security.")"
+    fi
+fi
 }
 
 # ---------------------------------------------------------------- removal
@@ -631,6 +730,8 @@ delete "$USER_HOME/Library/Cookies/com.microsoft.onedrive.binarycookies"
 delete "$USER_HOME/Library/Cookies/com.microsoft.onedriveupdater.binarycookies"
 
 remove_dock_icons
+
+remove_defender
 
 if [ "$MODE" = "scan" ] || [ "$CLEAN_PROFILE" -eq 1 ]; then
     step "$(tx "Outlook data" "Данные Outlook")"
@@ -853,14 +954,15 @@ spin_stop
 title "$(tx "Check result" "Результат проверки")"
 info "$(tx "System components found" "Найдено системных компонентов"): $FOUND_SYSTEM"
 info "$(tx "Items in the user profile" "Элементов в профиле пользователя"): $FOUND_PROFILE ($(tx "Outlook data" "данные Outlook"): $FOUND_PERSONAL)"
+info "$(tx "Microsoft Defender components found" "Найдено компонентов Microsoft Defender"): $FOUND_DEFENDER"
 if [ "$KC_RC" -eq 0 ]; then
     info "$(tx "Keychain entries" "Записей в связке ключей"): $KC_COUNT"
 else
     info "$(tx "Keychain entries: could not check (locked or no graphical session)" "Записи в связке ключей: проверить не удалось (связка заблокирована или нет графической сессии)")"
 fi
 
-if [ "$FOUND_SYSTEM" -eq 0 ] && [ "$FOUND_PROFILE" -eq 0 ] && [ "$KC_COUNT" -eq 0 ] && [ "$KC_RC" -eq 0 ]; then
-    printf '\n%s%s%s%s\n\n' "$BOLD" "$GREEN" "$(tx "No traces of Microsoft Office found, nothing to remove." "Следов Microsoft Office не найдено, удалять нечего.")" "$RESET"
+if [ "$FOUND_SYSTEM" -eq 0 ] && [ "$FOUND_PROFILE" -eq 0 ] && [ "$FOUND_DEFENDER" -eq 0 ] && [ "$KC_COUNT" -eq 0 ] && [ "$KC_RC" -eq 0 ]; then
+    printf '\n%s%s%s%s\n\n' "$BOLD" "$GREEN" "$(tx "No traces of Microsoft Office or Defender found, nothing to remove." "Следов Microsoft Office и Defender не найдено, удалять нечего.")" "$RESET"
     exit 0
 fi
 
@@ -884,8 +986,15 @@ Application Support, кэши и логи, действия Automator, чеки 
     DO_SYSTEM=1
 fi
 
+if [ "$FOUND_DEFENDER" -gt 0 ] && ask "$(tx "Remove Microsoft Defender?" "Удалить Microsoft Defender?")" n \
+"$(tx "Found: $FOUND_DEFENDER component(s): application, background services, settings, logs and the installer receipt.
+Defender is not a part of Office: the computer will have no Defender protection after this." "Найдено компонентов: $FOUND_DEFENDER: приложение, фоновые службы, настройки, логи и чек установки.
+Defender не входит в Office: после удаления компьютер останется без защиты Defender.")"; then
+    DO_DEFENDER=1
+fi
+
 # ---- 3. removal
-if [ "$CLEAN_PROFILE" -eq 1 ] || [ "$DO_SYSTEM" -eq 1 ]; then
+if [ "$CLEAN_PROFILE" -eq 1 ] || [ "$DO_SYSTEM" -eq 1 ] || [ "$DO_DEFENDER" -eq 1 ]; then
     if [ "$DO_BACKUP" -eq 1 ] && ! do_backup; then
         if ! ask "$(tx "Remove Outlook data without a complete backup?" "Удалить данные Outlook без полной резервной копии?")" n \
         "$(tx "Check the reasons above (Full Disk Access for Terminal, restart Terminal) and run the script again." "Проверьте причины выше (полный доступ к диску для Terminal, перезапуск Terminal) и запустите скрипт снова.")"; then

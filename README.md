@@ -7,7 +7,7 @@
 ## Что делает
 
 - Перед вопросами проверяет, что реально осталось: системные файлы, профиль, данные Outlook, чеки установки, связку ключей, иконки Dock.
-- Затрагивает только Office и OneDrive: профили и настройки Edge, VS Code, Teams и других продуктов Microsoft остаются нетронутыми.
+- Затрагивает только Office, OneDrive и (по отдельному вопросу) Microsoft Defender: профили и настройки Edge, VS Code, Teams и других продуктов Microsoft остаются нетронутыми.
 - Делает резервную копию данных Outlook перед удалением и не удаляет их без вашего согласия.
 - Удаляет иконки Office из Dock (закреплённые и «недавние»), чеки установки (`pkgutil`) и фоновые службы.
 - Записи связки ключей удаляет по одной, с подтверждением каждой; пароли не читает.
@@ -28,7 +28,8 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/mast
 
 1. **Удалять ли данные Office из пользовательского профиля** (`~/Library` и локальные данные Outlook). По умолчанию «нет». Если «да», дополнительно предлагается копия данных Outlook на Рабочий стол.
 2. **Удалить Microsoft Office и все остальные компоненты**: приложения, настройки, контейнеры, кэши, Automator, шрифты, OneDrive и иконки Office из Dock.
-3. **Искать ли записи Microsoft/Office в связке ключей.** По умолчанию «нет». Скрипт показывает найденные записи без чтения паролей и спрашивает про каждую.
+3. **Удалить ли Microsoft Defender**, если он найден. Defender ставится одним пакетом (`com.microsoft.wdav`): скрипт запускает его официальный деинсталлятор, затем убирает остатки (приложение, службы `com.microsoft.fresno`/`com.microsoft.wdav.*`, настройки, логи, чек установки). По умолчанию «нет»: после удаления компьютер остаётся без защиты Defender. Если у Defender включена защита от изменений (Tamper Protection) или он управляется MDM, macOS может не дать удалить часть файлов.
+4. **Искать ли записи Microsoft/Office в связке ключей.** По умолчанию «нет». Скрипт показывает найденные записи без чтения паролей и спрашивает про каждую.
 
 Локальные данные Outlook (`UBF8T346G9.Office`, `com.microsoft.Outlook`) удаляются только вместе с профилем и только если вы явно согласились на это в первом вопросе.
 
@@ -155,7 +156,7 @@ An interactive shell script that completely removes Microsoft Office for Mac 201
 ### What it does
 
 - Before asking anything it checks what is actually left: system files, profile, Outlook data, installer receipts, keychain, Dock icons.
-- Touches only Office and OneDrive: profiles and settings of Edge, VS Code, Teams and other Microsoft products are left alone.
+- Touches only Office, OneDrive and (as a separate question) Microsoft Defender: profiles and settings of Edge, VS Code, Teams and other Microsoft products are left alone.
 - Makes a backup of Outlook data before removal and does not remove it without your consent.
 - Removes Office icons from the Dock (pinned and "recent"), installer receipts (`pkgutil`) and background services.
 - Keychain entries are removed one by one, each with a confirmation; passwords are never read.
@@ -176,7 +177,8 @@ Then it asks questions, you only confirm with `y` or `n` (`д`/`н` also work; E
 
 1. **Whether to remove Office data from the user profile** (`~/Library` and local Outlook data). Default "no". If "yes", a backup copy of the Outlook data to the Desktop is offered.
 2. **Remove Microsoft Office and all other components**: apps, settings, containers, caches, Automator actions, fonts, OneDrive, and Office icons from the Dock.
-3. **Whether to search the keychain for Microsoft/Office entries.** Default "no". The script lists found entries without reading passwords and asks about each one.
+3. **Whether to remove Microsoft Defender**, if found. Defender is installed as a single package (`com.microsoft.wdav`): the script runs its official uninstaller, then removes the leftovers (app, `com.microsoft.fresno`/`com.microsoft.wdav.*` services, settings, logs, installer receipt). Default "no": the computer has no Defender protection afterwards. If Tamper Protection is on or Defender is managed by MDM, macOS may refuse to remove some files.
+4. **Whether to search the keychain for Microsoft/Office entries.** Default "no". The script lists found entries without reading passwords and asks about each one.
 
 Local Outlook data (`UBF8T346G9.Office`, `com.microsoft.Outlook`) is removed only together with the profile, and only if you explicitly agreed in the first question.
 
