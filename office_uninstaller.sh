@@ -929,7 +929,7 @@ if [ "$REMOVED" -gt 0 ] || [ "$KEYCHAIN_DONE" -eq 0 ]; then
         if [ "$DOCK_REMOVED" -eq 0 ]; then
             info "$(tx "- Remove Office icons from the Dock (right-click > Options > Remove from Dock)." "- Уберите значки Office из Dock (правый клик > Параметры > Удалить из Dock).")"
         fi
-        info "$(tx "- Restart the computer." "- Перезагрузите компьютер.")"
+        info "$(tx "- Restarting the computer is recommended, especially before reinstalling Office (not required otherwise)." "- Перезагрузка рекомендуется, особенно перед повторной установкой Office (в остальных случаях необязательна).")"
     fi
 fi
 printf '\n'
