@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 fda"
+SCRIPT_VERSION="2026-10-08 fda2"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -346,14 +346,26 @@ do_backup()
     while IFS= read -r p; do
         if [ -e "$p" ]; then
             spin_start "$(tx "Copying" "Копирование") $p"
-            ditto "$p" "$BACKUP/$(basename "$p")" 2>/dev/null
+            dest="$BACKUP/$(basename "$p")"
+            copy_err="$(ditto "$p" "$dest" 2>&1)"
             rc=$?
+            if [ "$rc" -ne 0 ]; then
+                # second try without extended attributes, ACLs and resource forks
+                copy_err="$(ditto --noextattr --noacl --norsrc --noqtn "$p" "$dest" 2>&1)"
+                rc=$?
+            fi
+            # The system metadata file of a container is protected and never needed in a backup.
+            real_err="$(printf '%s\n' "$copy_err" | grep -v 'containermanagerd.metadata.plist' | grep .)"
+            [ -z "$real_err" ] && rc=0
             spin_stop
             if [ "$rc" -eq 0 ]; then
                 ok "$p"
                 COPIED=$((COPIED + 1))
             else
                 fail "$(tx "Cannot copy" "Не удалось скопировать") $p"
+                printf '%s\n' "$real_err" | head -3 | while IFS= read -r line; do
+                    info "  $(printf '%s' "$line" | cut -c1-110)"
+                done
                 COPY_FAILED=$((COPY_FAILED + 1))
             fi
         fi
@@ -370,7 +382,7 @@ EOF
         fi
     fi
     if [ "$COPY_FAILED" -gt 0 ]; then
-        warn "$(tx "Backup is incomplete: macOS denied access to some Outlook data." "Резервная копия неполная: macOS не дала доступ к части данных Outlook.")"
+        warn "$(tx "Backup is incomplete: some Outlook data could not be copied (reasons above)." "Резервная копия неполная: часть данных Outlook скопировать не удалось (причины выше).")"
         return 1
     fi
     return 0
@@ -795,7 +807,7 @@ if [ "$CLEAN_PROFILE" -eq 1 ] || [ "$DO_SYSTEM" -eq 1 ]; then
     [ "$CLEAN_PROFILE" -eq 1 ] && ensure_disk_access
     if [ "$DO_BACKUP" -eq 1 ] && ! do_backup; then
         if ! ask "$(tx "Remove Outlook data without a complete backup?" "Удалить данные Outlook без полной резервной копии?")" n \
-        "$(tx "Allow Terminal access (Full Disk Access) and run the script again to make a backup." "Выдайте Terminal доступ (полный доступ к диску) и запустите скрипт снова, чтобы сделать копию.")"; then
+        "$(tx "Check the reasons above (Full Disk Access for Terminal, restart Terminal) and run the script again." "Проверьте причины выше (полный доступ к диску для Terminal, перезапуск Terminal) и запустите скрипт снова.")"; then
             PROTECT_PERSONAL=1
             info "$(tx "Outlook data will be kept." "Данные Outlook будут сохранены.")"
         fi
