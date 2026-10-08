@@ -35,7 +35,13 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/mast
 2. В Finder нажмите Cmd+Shift+G и откройте `~/Library/Containers`. Перенесите туда `com.microsoft.Outlook` из копии и согласитесь на замену. Так же замените `UBF8T346G9.Office` в `~/Library/Group Containers`.
 3. Запустите Outlook: профиль и локальные данные должны вернуться.
 
-Если Finder не даёт заменить папки (контейнеры защищены macOS), используйте Terminal. Подставьте имя своей папки с копией:
+Всё это за вас делает отдельный скрипт. Установите Office, закройте все приложения Office и выполните в Terminal (пароль не нужен, `sudo` не используйте):
+```
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_restore.sh)"
+```
+Скрипт сначала проверяет и при необходимости просит выдать Terminal «Полный доступ к диску», затем что Outlook установлен и закрыт, находит на Рабочем столе папку `OfficeUninstall-backup-*` (если их несколько, предложит выбрать; свою папку можно передать аргументом), предупреждает о неполной копии. Если контейнеры ещё не созданы, сам запустит Outlook, чтобы macOS их создала. Перед заменой он сохраняет текущие данные Outlook на Рабочий стол в `OfficeUninstall-before-restore-*`, после копирования проверяет число файлов.
+
+Вручную то же самое делается так. Если Finder не даёт заменить папки (контейнеры защищены macOS), используйте Terminal. Подставьте имя своей папки с копией:
 ```
 cd ~/Desktop/OfficeUninstall-backup-ГГГГММДД-ЧЧММСС
 osascript -e 'quit app "Microsoft Outlook"'
@@ -123,7 +129,13 @@ If you agreed to the Outlook data backup, it is on the Desktop in the folder `Of
 2. In Finder press Cmd+Shift+G and open `~/Library/Containers`. Move `com.microsoft.Outlook` from the backup there and confirm the replacement. Do the same for `UBF8T346G9.Office` in `~/Library/Group Containers`.
 3. Launch Outlook: the profile and local data should be back.
 
-If Finder refuses to replace the folders (containers are protected by macOS), use Terminal. Substitute the name of your backup folder:
+A separate script does all of this for you. Install Office, quit all Office apps and run in Terminal (no password needed, do not use `sudo`):
+```
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_restore.sh)"
+```
+The script first checks and, if needed, asks you to grant Terminal "Full Disk Access", then checks that Outlook is installed and closed, finds the `OfficeUninstall-backup-*` folder on the Desktop (if there are several it lets you choose; you can also pass your own folder as an argument) and warns about an incomplete backup. If the containers do not exist yet it starts Outlook itself so macOS creates them. Before replacing anything it saves the current Outlook data to the Desktop as `OfficeUninstall-before-restore-*`, and after copying it checks the number of files.
+
+The same by hand: if Finder refuses to replace the folders (containers are protected by macOS), use Terminal. Substitute the name of your backup folder:
 ```
 cd ~/Desktop/OfficeUninstall-backup-YYYYMMDD-HHMMSS
 osascript -e 'quit app "Microsoft Outlook"'
