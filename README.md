@@ -23,6 +23,32 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/mast
 - Локальные данные Outlook (`UBF8T346G9.Office`, `com.microsoft.Outlook`) удаляются только вместе с профилем, если вы явно согласились на это в первом вопросе.
 - Удаляются только компоненты Office и OneDrive. Другие продукты Microsoft (Edge, VS Code, Teams и др.) не затрагиваются.
 
+# Восстановление профиля Outlook из копии
+Если вы согласились на копию данных Outlook, она лежит на Рабочем столе в папке `OfficeUninstall-backup-ГГГГММДД-ЧЧММСС`. Папки внутри повторяют исходные места, поэтому их нужно вернуть обратно:
+
+| Папка в копии | Куда положить |
+|---|---|
+| `com.microsoft.Outlook` | `~/Library/Containers/` |
+| `UBF8T346G9.Office` | `~/Library/Group Containers/` |
+
+1. Установите Office и один раз запустите Outlook, чтобы macOS создала контейнеры с правильными правами. Затем полностью закройте Outlook (Cmd+Q).
+2. В Finder нажмите Cmd+Shift+G и откройте `~/Library/Containers`. Перенесите туда `com.microsoft.Outlook` из копии и согласитесь на замену. Так же замените `UBF8T346G9.Office` в `~/Library/Group Containers`.
+3. Запустите Outlook: профиль и локальные данные должны вернуться.
+
+Если Finder не даёт заменить папки (контейнеры защищены macOS), используйте Terminal. Подставьте имя своей папки с копией:
+```
+cd ~/Desktop/OfficeUninstall-backup-ГГГГММДД-ЧЧММСС
+osascript -e 'quit app "Microsoft Outlook"'
+rsync -a com.microsoft.Outlook/ ~/Library/Containers/com.microsoft.Outlook/
+rsync -a UBF8T346G9.Office/ "$HOME/Library/Group Containers/UBF8T346G9.Office/"
+```
+Terminal может потребовать «Полный доступ к диску» (Системные настройки → Конфиденциальность и безопасность).
+
+Что важно знать:
+- Почта IMAP, Exchange и Microsoft 365 подтянется с сервера, но после восстановления может понадобиться войти в аккаунт заново.
+- Восстанавливайте копию в ту же или более новую версию Outlook: более старая может не открыть базу.
+- Не удаляйте папку с копией, пока не убедитесь, что всё на месте.
+
 # Другие решения
 
 Ниже инструменты, которые я проверил на момент написания (октябрь 2026). Отдельного официального «удалителя» Office для Mac я не нашёл: у Microsoft есть только инструкция по ручному удалению и инструмент удаления лицензий.
@@ -84,6 +110,32 @@ The message language follows the macOS language: Russian if the system is Russia
 - `sudo su` is **not** needed. The script detects the real user itself, so the result does not depend on how you got root. The profile (`~/Library`) is not touched by default, but you can agree to clean it by answering `y` to the question.
 - Local Outlook data (`UBF8T346G9.Office`, `com.microsoft.Outlook`) is removed only together with the profile, and only if you explicitly agreed in the first question.
 - Only Office components and OneDrive are removed. Other Microsoft products (Edge, VS Code, Teams, etc.) are not touched.
+
+### Restoring the Outlook profile from the backup
+If you agreed to the Outlook data backup, it is on the Desktop in the folder `OfficeUninstall-backup-YYYYMMDD-HHMMSS`. The folders inside mirror the original locations, so put them back:
+
+| Folder in the backup | Where to put it |
+|---|---|
+| `com.microsoft.Outlook` | `~/Library/Containers/` |
+| `UBF8T346G9.Office` | `~/Library/Group Containers/` |
+
+1. Install Office and launch Outlook once so macOS creates the containers with the right permissions. Then quit Outlook completely (Cmd+Q).
+2. In Finder press Cmd+Shift+G and open `~/Library/Containers`. Move `com.microsoft.Outlook` from the backup there and confirm the replacement. Do the same for `UBF8T346G9.Office` in `~/Library/Group Containers`.
+3. Launch Outlook: the profile and local data should be back.
+
+If Finder refuses to replace the folders (containers are protected by macOS), use Terminal. Substitute the name of your backup folder:
+```
+cd ~/Desktop/OfficeUninstall-backup-YYYYMMDD-HHMMSS
+osascript -e 'quit app "Microsoft Outlook"'
+rsync -a com.microsoft.Outlook/ ~/Library/Containers/com.microsoft.Outlook/
+rsync -a UBF8T346G9.Office/ "$HOME/Library/Group Containers/UBF8T346G9.Office/"
+```
+Terminal may need "Full Disk Access" (System Settings → Privacy & Security).
+
+Good to know:
+- IMAP, Exchange and Microsoft 365 mail is pulled from the server again, but after restoring you may need to sign in to the account once more.
+- Restore the backup into the same or a newer Outlook version: an older one may not open the database.
+- Do not delete the backup folder until you are sure everything is in place.
 
 ### Other solutions
 
