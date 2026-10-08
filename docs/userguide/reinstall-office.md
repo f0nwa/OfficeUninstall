@@ -89,7 +89,11 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/mast
 
 Если почта размещена на собственном сервере организации (**Exchange on-premise**), не пользуйтесь новым интерфейсом Outlook. По опыту автора, который сопровождал десятки пользователей, в прежнем (классическом) интерфейсе Outlook работает заметно стабильнее.
 
-После переустановки при **первом запуске** Outlook в верхней панели окна переключите интерфейс на прежний: выключите переключатель «New Outlook» («Новый Outlook»). Название и расположение могут отличаться в разных сборках Office. Делайте это до добавления учётной записи или сразу после восстановления профиля. Если вы вернули профиль скриптом, переключитесь после восстановления, как только Outlook откроется.
+После переустановки при **первом запуске** Outlook переключите интерфейс на прежний: в строке меню macOS (вверху экрана) откройте меню **Outlook** и выберите **«Устаревшая версия Outlook»**. Рядом с пунктом появится галочка, Outlook может перезапуститься.
+
+![Меню Outlook → Устаревшая версия Outlook](img/legacy-outlook.png)
+
+Делайте это до добавления учётной записи или сразу после восстановления профиля. Если вы вернули профиль скриптом, переключитесь, как только Outlook откроется после восстановления.
 
 Для Microsoft 365 и IMAP это не обязательно.
 
@@ -197,7 +201,11 @@ Open Outlook. After the restore you may need to sign in to the account again. Wi
 
 If your mail is hosted on your organization's own server (**on-premise Exchange**), do not use the new Outlook interface. In the author's experience supporting dozens of users, Outlook works noticeably more stably in the previous (classic) interface.
 
-After reinstalling, on the **first launch** of Outlook switch the interface to the previous one in the top bar of the window: turn off the "New Outlook" toggle. Its name and position may differ between Office builds. Do this before adding the account or right after the profile restore. If you restored the profile with the script, switch as soon as Outlook opens after the restore.
+After reinstalling, on the **first launch** of Outlook switch the interface to the previous one: in the macOS menu bar (top of the screen) open the **Outlook** menu and choose **"Legacy Outlook"** (shown as "Устаревшая версия Outlook" in the Russian interface, see the screenshot). A check mark appears next to it, and Outlook may restart.
+
+![Outlook menu → Legacy Outlook](img/legacy-outlook.png)
+
+Do this before adding the account or right after the profile restore. If you restored the profile with the script, switch as soon as Outlook opens after the restore.
 
 This is not required for Microsoft 365 and IMAP.
 
