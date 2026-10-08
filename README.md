@@ -2,7 +2,7 @@
 
 Интерактивный shell-скрипт, который полностью удаляет Microsoft Office для Mac 2011/2016/2019/2021/2024/365. Перед удалением он может сохранить данные Outlook, а второй скрипт вернёт их в новую установку.
 
-[Использование](#использование) · [Восстановление Outlook](#восстановление-профиля-outlook) · [Отключение MAU](#отключение-microsoft-autoupdate) · [Другие решения](#другие-решения) · [English](#english)
+[Использование](#использование) · [Восстановление Outlook](#восстановление-профиля-outlook) · [Отключение MAU](#отключение-microsoft-autoupdate) · [Где скачать и как активировать](#где-скачать-office-и-как-активировать) · [Другие решения](#другие-решения) · [English](#english)
 
 ## Что делает
 
@@ -111,6 +111,17 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/mast
 - Переустановка или обновление Office может вернуть MAU: тогда запустите скрипт ещё раз.
 - Если MAU уже нет, скрипт сообщит об этом и ничего не изменит.
 
+## Где скачать Office и как активировать
+
+**Где скачать.** Актуальные установщики Microsoft публикует на странице [Update history for Office for Mac](https://learn.microsoft.com/en-us/officeupdates/update-history-office-for-mac). Там есть пакет установки всего набора Office (с Microsoft Teams и без него) для новой установки и пакеты обновления отдельных приложений (Word, Excel, PowerPoint, Outlook, OneNote). Ссылки на скачивание даны только для последних выпусков, поддерживается только самая новая версия. Отдельных установщиков для каждого приложения на странице нет.
+
+**Как активировать.**
+
+- **Microsoft 365 (подписка).** Запустите любое приложение Office и войдите в учётную запись с активной подпиской.
+- **Office LTSC 2024 и 2021 для Mac по корпоративной лицензии.** Активирует Volume License (VL) Serializer: пакет `.pkg`, который запускают на Mac с установленным Office. Скачать его может только администратор корпоративного лицензирования: [Microsoft 365 admin center](https://admin.microsoft.com/) → Billing → Your products → Volume licensing → вкладка Download and keys, поиск «Office LTSC Standard for Mac 2024» или «2021». Подробности в [документации Microsoft](https://learn.microsoft.com/en-us/microsoft-365-apps/mac/volume-license-serializer). Лицензия лежит в `/Library/Preferences/com.microsoft.office.licensingV2.plist` и привязана к серийному номеру загрузочного диска, поэтому перенести её на другой Mac нельзя.
+
+`office_uninstaller.sh` удаляет и этот файл лицензии, так что после переустановки Office LTSC нужно запустить VL Serializer ещё раз. Для подписки Microsoft 365 достаточно снова войти в учётную запись.
+
 ## Другие решения
 
 Ниже инструменты, которые я проверил на момент написания (октябрь 2026). Отдельного официального «удалителя» Office для Mac я не нашёл: у Microsoft есть только инструкция по ручному удалению и инструмент удаления лицензий.
@@ -151,7 +162,7 @@ Microsoft не предоставляет официальную програм�
 
 An interactive shell script that completely removes Microsoft Office for Mac 2011/2016/2019/2021/2024/365. Before removal it can save your Outlook data, and a second script puts it back into the new installation.
 
-[Usage](#usage) · [Restoring Outlook](#restoring-the-outlook-profile) · [Removing MAU](#removing-microsoft-autoupdate) · [Other solutions](#other-solutions)
+[Usage](#usage) · [Restoring Outlook](#restoring-the-outlook-profile) · [Removing MAU](#removing-microsoft-autoupdate) · [Where to download and how to activate](#where-to-download-office-and-how-to-activate) · [Other solutions](#other-solutions)
 
 ### What it does
 
@@ -259,6 +270,17 @@ Good to know:
 - Afterwards "Check for Updates" in Office stops working: install updates by hand by downloading the installer from Microsoft.
 - Reinstalling or updating Office may bring MAU back: just run the script again.
 - If MAU is already gone, the script says so and changes nothing.
+
+### Where to download Office and how to activate
+
+**Where to download.** Microsoft publishes current installers on the [Update history for Office for Mac](https://learn.microsoft.com/en-us/officeupdates/update-history-office-for-mac) page. It has the install package for the whole Office suite (with or without Microsoft Teams) for a new installation, and update packages for individual apps (Word, Excel, PowerPoint, Outlook, OneNote). Download links are given only for the latest releases, and only the newest version is supported. The page has no standalone installers for each app.
+
+**How to activate.**
+
+- **Microsoft 365 (subscription).** Launch any Office app and sign in with an account that has an active subscription.
+- **Office LTSC 2024 and 2021 for Mac under a volume license.** Activated by the Volume License (VL) Serializer: a `.pkg` package that you run on a Mac where Office is installed. Only a volume licensing administrator can download it: [Microsoft 365 admin center](https://admin.microsoft.com/) → Billing → Your products → Volume licensing → the Download and keys tab, search for "Office LTSC Standard for Mac 2024" or "2021". Details are in [Microsoft's documentation](https://learn.microsoft.com/en-us/microsoft-365-apps/mac/volume-license-serializer). The license is stored in `/Library/Preferences/com.microsoft.office.licensingV2.plist` and is tied to the serial number of the boot drive, so it cannot be moved to another Mac.
+
+`office_uninstaller.sh` removes this license file too, so after reinstalling Office LTSC run the VL Serializer again. For a Microsoft 365 subscription it is enough to sign in again.
 
 ### Other solutions
 
