@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 fda6"
+SCRIPT_VERSION="2026-10-08 dock"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -256,6 +256,63 @@ PERSONAL="$USER_HOME/Library/Group Containers/UBF8T346G9.Office
 $USER_HOME/Library/Containers/com.microsoft.Outlook
 $USER_HOME/Documents/Microsoft ~ Data
 $USER_HOME/Documents/Microsoft User Data"
+
+# ---------------------------------------------------------------- Dock
+PLISTBUDDY=/usr/libexec/PlistBuddy
+DOCK_PLIST="$USER_HOME/Library/Preferences/com.apple.dock.plist"
+DOCK_REMOVED=0
+
+# Prints "index|name" for Dock icons of Office apps, highest index first
+# (deleting from the end keeps the lower indexes valid).
+dock_office_icons()
+{
+    [ -f "$DOCK_PLIST" ] && [ -x "$PLISTBUDDY" ] || return 0
+    n="$(as_user "$PLISTBUDDY" -c "Print :persistent-apps" "$DOCK_PLIST" 2>/dev/null | grep -c '^    Dict {')"
+    [ "${n:-0}" -gt 0 ] || return 0
+    i=$((n - 1))
+    while [ "$i" -ge 0 ]; do
+        url="$(as_user "$PLISTBUDDY" -c "Print :persistent-apps:$i:tile-data:file-data:_CFURLString" "$DOCK_PLIST" 2>/dev/null)"
+        name=""
+        case "$url" in
+            *"Microsoft%20Word.app"*) name="Microsoft Word" ;;
+            *"Microsoft%20Excel.app"*) name="Microsoft Excel" ;;
+            *"Microsoft%20PowerPoint.app"*) name="Microsoft PowerPoint" ;;
+            *"Microsoft%20Outlook.app"*) name="Microsoft Outlook" ;;
+            *"Microsoft%20OneNote.app"*) name="Microsoft OneNote" ;;
+            */OneDrive.app*) name="OneDrive" ;;
+        esac
+        [ -n "$name" ] && printf '%s|%s\n' "$i" "$name"
+        i=$((i - 1))
+    done
+}
+
+remove_dock_icons()
+{
+    icons="$(dock_office_icons)"
+    [ -n "$icons" ] || return 0
+    if [ "$MODE" = "scan" ]; then
+        FOUND_SYSTEM=$((FOUND_SYSTEM + $(printf '%s\n' "$icons" | grep -c .)))
+        return 0
+    fi
+    [ "$DO_SYSTEM" -eq 1 ] || return 0
+    title "Dock"
+    while IFS='|' read -r idx name; do
+        [ -n "$idx" ] || continue
+        if as_user "$PLISTBUDDY" -c "Delete :persistent-apps:$idx" "$DOCK_PLIST" >/dev/null 2>&1; then
+            ok "$(tx "Removed icon" "Удалена иконка"): $name"
+            REMOVED=$((REMOVED + 1))
+            DOCK_REMOVED=$((DOCK_REMOVED + 1))
+        else
+            fail "$(tx "Cannot remove icon" "Не удалось удалить иконку"): $name"
+        fi
+    done <<EOF
+$icons
+EOF
+    if [ "$DOCK_REMOVED" -gt 0 ]; then
+        as_user killall cfprefsd >/dev/null 2>&1
+        as_user killall Dock >/dev/null 2>&1
+    fi
+}
 
 # ---------------------------------------------------------------- receipts and services
 # Installer receipts of the Office packages (com.microsoft.package.*): the file mask
@@ -544,6 +601,8 @@ deletefiles "/Library/Logs/DiagnosticReports/OneDrive"
 delete "$USER_HOME/Library/Cookies/com.microsoft.onedrive.binarycookies"
 delete "$USER_HOME/Library/Cookies/com.microsoft.onedriveupdater.binarycookies"
 
+remove_dock_icons
+
 if [ "$MODE" = "scan" ] || [ "$CLEAN_PROFILE" -eq 1 ]; then
     step "$(tx "Outlook data" "Данные Outlook")"
     while IFS= read -r p; do
@@ -723,6 +782,25 @@ info "$(tx "Language" "Язык"): $LANG_UI   $(tx "Script version" "Верси�
 
 
 # ---- 1. check what exists before asking anything
+# Running Office apps lock their files and recreate settings on exit: ask to close them first.
+RUNNING=""
+for proc in "Microsoft Word" "Microsoft Excel" "Microsoft PowerPoint" "Microsoft Outlook" "Microsoft OneNote"; do
+    if pgrep -x "$proc" >/dev/null 2>&1; then
+        RUNNING="$RUNNING
+$proc"
+    fi
+done
+RUNNING="$(printf '%s\n' "$RUNNING" | grep .)"
+if [ -n "$RUNNING" ]; then
+    title "$(tx "Office applications are running" "Запущены приложения Office")"
+    printf '%s\n' "$RUNNING" | while IFS= read -r proc; do
+        warn "$proc"
+    done
+    info "$(tx "Quit them (Cmd+Q), save your documents, and run the script again." "Закройте их (Cmd+Q), сохраните документы и запустите скрипт повторно.")"
+    printf '\n'
+    exit 1
+fi
+
 # Full Disk Access first: without it macOS hides the contents of app containers and the
 # scan cannot find all leftovers.
 ensure_disk_access
@@ -754,14 +832,6 @@ fi
 if [ "$FOUND_SYSTEM" -eq 0 ] && [ "$FOUND_PROFILE" -eq 0 ] && [ "$KC_COUNT" -eq 0 ] && [ "$KC_RC" -eq 0 ]; then
     printf '\n%s%s%s%s\n\n' "$BOLD" "$GREEN" "$(tx "No traces of Microsoft Office found, nothing to remove." "Следов Microsoft Office не найдено, удалять нечего.")" "$RESET"
     exit 0
-fi
-
-if [ "$FOUND_SYSTEM" -gt 0 ] || [ "$FOUND_PROFILE" -gt 0 ]; then
-    if pgrep -x -f "Microsoft (Word|Excel|PowerPoint|Outlook|OneNote)" >/dev/null 2>&1; then
-        printf '\n'
-        warn "$(tx "Office applications are still running. Please quit them first." "Приложения Office ещё запущены. Сначала закройте их.")"
-        ask "$(tx "Continue anyway?" "Всё равно продолжить?")" n || exit 1
-    fi
 fi
 
 # ---- 2. questions, only about what was found
@@ -828,7 +898,9 @@ if [ "$REMOVED" -gt 0 ] || [ "$KEYCHAIN_DONE" -eq 0 ]; then
         info "$(tx "   Search the keychain for \"ADAL\" and remove all matching entries." "   Найдите все записи со словом «ADAL» и удалите их.")"
     fi
     if [ "$REMOVED" -gt 0 ]; then
-        info "$(tx "- Remove Office icons from the Dock (right-click > Options > Remove from Dock)." "- Уберите значки Office из Dock (правый клик > Параметры > Удалить из Dock).")"
+        if [ "$DOCK_REMOVED" -eq 0 ]; then
+            info "$(tx "- Remove Office icons from the Dock (right-click > Options > Remove from Dock)." "- Уберите значки Office из Dock (правый клик > Параметры > Удалить из Dock).")"
+        fi
         info "$(tx "- Restart the computer." "- Перезагрузите компьютер.")"
     fi
 fi
