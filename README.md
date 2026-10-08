@@ -2,7 +2,7 @@
 
 Интерактивный shell-скрипт, который полностью удаляет Microsoft Office для Mac 2011/2016/2019/2021/2024/365. Перед удалением он может сохранить данные Outlook, а второй скрипт вернёт их в новую установку.
 
-[Использование](#использование) · [Восстановление Outlook](#восстановление-профиля-outlook) · [Другие решения](#другие-решения) · [English](#english)
+[Использование](#использование) · [Восстановление Outlook](#восстановление-профиля-outlook) · [Отключение MAU](#отключение-microsoft-autoupdate) · [Другие решения](#другие-решения) · [English](#english)
 
 ## Что делает
 
@@ -87,6 +87,29 @@ Terminal может потребовать «Полный доступ к дис
 
 </details>
 
+## Отключение Microsoft AutoUpdate
+
+Office обновляется через Microsoft AutoUpdate (MAU): отдельное приложение с фоновыми службами, которое после установки само проверяет обновления. Если оно не нужно, его можно удалить, не трогая сам Office. Основной скрипт удаляет MAU вместе со всем Office, а этот нужен, когда Office уже установлен заново.
+
+Закройте окна MAU, если они открыты, и выполните в Terminal:
+
+```
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_remove_mau.sh)"
+```
+
+Скрипт предупредит про пароль учётной записи macOS и сам запросит права администратора (`sudo su` не нужен). Затем он проверит, что осталось от MAU, и спросит подтверждение (по умолчанию «нет»). Если согласиться, он остановит фоновые службы и удалит:
+
+- `/Library/Application Support/Microsoft/MAU2.0` (приложение Microsoft AutoUpdate и Update Assistant);
+- `/Library/LaunchAgents/com.microsoft.update.agent.plist`;
+- `/Library/LaunchDaemons/com.microsoft.autoupdate.helper.plist`;
+- `/Library/PrivilegedHelperTools/com.microsoft.autoupdate.helper`.
+
+Что важно знать:
+
+- После удаления пункт «Проверить обновления» в Office перестанет работать: обновления придётся ставить вручную, скачав установщик с сайта Microsoft.
+- Переустановка или обновление Office может вернуть MAU: тогда запустите скрипт ещё раз.
+- Если MAU уже нет, скрипт сообщит об этом и ничего не изменит.
+
 ## Другие решения
 
 Ниже инструменты, которые я проверил на момент написания (октябрь 2026). Отдельного официального «удалителя» Office для Mac я не нашёл: у Microsoft есть только инструкция по ручному удалению и инструмент удаления лицензий.
@@ -127,7 +150,7 @@ Microsoft не предоставляет официальную програм�
 
 An interactive shell script that completely removes Microsoft Office for Mac 2011/2016/2019/2021/2024/365. Before removal it can save your Outlook data, and a second script puts it back into the new installation.
 
-[Usage](#usage) · [Restoring Outlook](#restoring-the-outlook-profile) · [Other solutions](#other-solutions)
+[Usage](#usage) · [Restoring Outlook](#restoring-the-outlook-profile) · [Removing MAU](#removing-microsoft-autoupdate) · [Other solutions](#other-solutions)
 
 ### What it does
 
@@ -211,6 +234,29 @@ rsync -a UBF8T346G9.Office/ "$HOME/Library/Group Containers/UBF8T346G9.Office/"
 Terminal may need "Full Disk Access" (System Settings → Privacy & Security).
 
 </details>
+
+### Removing Microsoft AutoUpdate
+
+Office is updated through Microsoft AutoUpdate (MAU): a separate app with background services that checks for updates on its own after installation. If you do not need it, it can be removed without touching Office itself. The main script removes MAU together with all of Office, while this one is for when Office is already installed again.
+
+Close the MAU windows if they are open and run in Terminal:
+
+```
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_remove_mau.sh)"
+```
+
+The script warns about the macOS account password and requests administrator rights itself (`sudo su` is not needed). Then it checks what is left of MAU and asks for confirmation (default "no"). If you agree, it stops the background services and removes:
+
+- `/Library/Application Support/Microsoft/MAU2.0` (the Microsoft AutoUpdate app and Update Assistant);
+- `/Library/LaunchAgents/com.microsoft.update.agent.plist`;
+- `/Library/LaunchDaemons/com.microsoft.autoupdate.helper.plist`;
+- `/Library/PrivilegedHelperTools/com.microsoft.autoupdate.helper`.
+
+Good to know:
+
+- Afterwards "Check for Updates" in Office stops working: install updates by hand by downloading the installer from Microsoft.
+- Reinstalling or updating Office may bring MAU back: just run the script again.
+- If MAU is already gone, the script says so and changes nothing.
 
 ### Other solutions
 
