@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 dock"
+SCRIPT_VERSION="2026-10-08 backup-retry"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -382,28 +382,41 @@ do_backup()
     mkdir -p "$BACKUP"
     COPIED=0
     COPY_FAILED=0
+    # Outlook's background helpers keep its database open and may still be writing to it.
+    for helper in "Microsoft Database Daemon" "Microsoft Outlook"; do
+        pkill -x "$helper" >/dev/null 2>&1
+    done
+    sleep 1
     while IFS= read -r p; do
         if [ -e "$p" ]; then
             spin_start "$(tx "Copying" "Копирование") $p"
             dest="$BACKUP/$(basename "$p")"
-            copy_err="$(ditto "$p" "$dest" 2>&1)"
-            rc=$?
-            if [ "$rc" -ne 0 ]; then
-                # second try without extended attributes, ACLs and resource forks
-                copy_err="$(ditto --noextattr --noacl --norsrc --noqtn "$p" "$dest" 2>&1)"
+            attempt=0
+            rc=1
+            while [ "$rc" -ne 0 ] && [ "$attempt" -lt 3 ]; do
+                attempt=$((attempt + 1))
+                [ "$attempt" -gt 1 ] && sleep 2
+                copy_err="$(ditto "$p" "$dest" 2>&1)"
                 rc=$?
-            fi
-            # The system metadata file of a container is protected and never needed in a backup.
-            real_err="$(printf '%s\n' "$copy_err" | grep -v 'containermanagerd.metadata.plist' | grep .)"
-            [ -z "$real_err" ] && rc=0
+                if [ "$rc" -ne 0 ]; then
+                    # without extended attributes, ACLs and resource forks
+                    copy_err="$(ditto --noextattr --noacl --norsrc --noqtn "$p" "$dest" 2>&1)"
+                    rc=$?
+                fi
+                # The system metadata file of a container is protected and never needed in a backup.
+                real_err="$(printf '%s\n' "$copy_err" | grep -v 'containermanagerd.metadata.plist' | grep .)"
+                [ -z "$real_err" ] && rc=0
+            done
             spin_stop
             if [ "$rc" -eq 0 ]; then
                 ok "$p"
                 COPIED=$((COPIED + 1))
             else
                 fail "$(tx "Cannot copy" "Не удалось скопировать") $p"
+                printf '%s\n' "$real_err" >> "$BACKUP/backup-errors.log"
+                # keep the end of the line: the reason comes last
                 printf '%s\n' "$real_err" | head -3 | while IFS= read -r line; do
-                    info "  $(printf '%s' "$line" | cut -c1-110)"
+                    info "  $(printf '%s' "$line" | awk '{ if (length($0) > 100) print "..." substr($0, length($0) - 96); else print }')"
                 done
                 COPY_FAILED=$((COPY_FAILED + 1))
             fi
@@ -414,6 +427,7 @@ EOF
     chown -R "$TARGET_USER" "$BACKUP"
     if [ "$COPIED" -gt 0 ]; then
         info "$(tx "Backup stored in" "Копия сохранена в") ${MAGENTA}${BACKUP}${RESET}"
+        [ -f "$BACKUP/backup-errors.log" ] && info "$(tx "Full error log:" "Полный журнал ошибок:") ${MAGENTA}${BACKUP}/backup-errors.log${RESET}"
     else
         rmdir "$BACKUP" 2>/dev/null
         if [ "$COPY_FAILED" -eq 0 ]; then
