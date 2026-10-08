@@ -1,30 +1,69 @@
 # Удаление Microsoft Office для Mac
-[English version below](#english)
 
-Интерактивный shell-скрипт для полного удаления Microsoft Office для Mac 2011/2016/2019/2021/2024/365.
+Интерактивный shell-скрипт, который полностью удаляет Microsoft Office для Mac 2011/2016/2019/2021/2024/365. Перед удалением он может сохранить данные Outlook, а второй скрипт вернёт их в новую установку.
 
-# Использование
+[Использование](#использование) · [Восстановление Outlook](#восстановление-профиля-outlook) · [Другие решения](#другие-решения) · [English](#english)
+
+## Что делает
+
+- Перед вопросами проверяет, что реально осталось: системные файлы, профиль, данные Outlook, чеки установки, связку ключей, иконки Dock.
+- Затрагивает только Office и OneDrive: профили и настройки Edge, VS Code, Teams и других продуктов Microsoft остаются нетронутыми.
+- Делает резервную копию данных Outlook перед удалением и не удаляет их без вашего согласия.
+- Удаляет иконки Office из Dock (закреплённые и «недавние»), чеки установки (`pkgutil`) и фоновые службы.
+- Записи связки ключей удаляет по одной, с подтверждением каждой; пароли не читает.
+- Просит закрыть запущенные приложения Office и выдать «Полный доступ к диску» до начала работы, при необходимости открывает нужные Системные настройки.
+- Язык интерфейса выбирается по языку macOS: русский или английский.
+
+## Использование
+
 Скрипт запускается сразу по сети, скачивать его и указывать параметры не нужно. Закройте все приложения Office и выполните в Terminal:
+
 ```
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh)"
 ```
-В начале скрипт предупредит, что сейчас потребуется локальный пароль от вашей учётной записи macOS (при вводе символы не отображаются), и сам запросит права администратора. Запуск с `sudo sh -c "…"` тоже работает.
 
-Скрипт сам задаёт вопросы, вам остаётся подтверждать `д` или `н` (Enter выбирает вариант по умолчанию):
- 1. удалять ли данные Office из пользовательского профиля (`~/Library` и локальные данные Outlook), по умолчанию «нет»; если «да», дополнительно предлагается копия данных Outlook на Рабочий стол;
- 2. общий вопрос: удалить Microsoft Office и все остальные компоненты (приложения, настройки, контейнеры, кэши, Automator, шрифты, OneDrive, а также иконки Office из Dock: закреплённые и в «недавних»);
- 3. искать ли записи Microsoft/Office в связке ключей (по умолчанию «нет»): скрипт показывает найденные записи без чтения паролей и спрашивает про каждую.
+В начале скрипт предупредит, что сейчас потребуется локальный пароль от вашей учётной записи macOS (при вводе символы не отображаются), и сам запросит права администратора. Запуск с `sudo sh -c "…"` тоже работает, а `sudo su` **не нужен**: скрипт сам определяет настоящего пользователя.
+
+Дальше он задаёт вопросы, вам остаётся отвечать `д` или `н` (можно и `y`/`n`; Enter выбирает вариант по умолчанию):
+
+1. **Удалять ли данные Office из пользовательского профиля** (`~/Library` и локальные данные Outlook). По умолчанию «нет». Если «да», дополнительно предлагается копия данных Outlook на Рабочий стол.
+2. **Удалить Microsoft Office и все остальные компоненты**: приложения, настройки, контейнеры, кэши, Automator, шрифты, OneDrive и иконки Office из Dock.
+3. **Искать ли записи Microsoft/Office в связке ключей.** По умолчанию «нет». Скрипт показывает найденные записи без чтения паролей и спрашивает про каждую.
+
+Локальные данные Outlook (`UBF8T346G9.Office`, `com.microsoft.Outlook`) удаляются только вместе с профилем и только если вы явно согласились на это в первом вопросе.
+
+После удаления рекомендуется перезагрузить компьютер, особенно перед повторной установкой Office; в остальных случаях это необязательно.
 
 Интерфейс цветной, при долгих операциях показывается анимация. Цвета отключаются переменной `NO_COLOR=1` или если вывод не в терминал.
 
-Язык сообщений выбирается автоматически по языку macOS: русский, если система на русском, иначе английский. Отвечать можно `y`/`n` или `д`/`н`.
+## Восстановление профиля Outlook
 
-- `sudo su` **не нужен**. Скрипт сам определяет настоящего пользователя, поэтому результат не зависит от того, как вы получили root. Профиль (`~/Library`) по умолчанию не трогается (как раньше при `sudo su`), но вы можете согласиться на его очистку, ответив `y` на вопрос.
-- Локальные данные Outlook (`UBF8T346G9.Office`, `com.microsoft.Outlook`) удаляются только вместе с профилем, если вы явно согласились на это в первом вопросе.
-- Удаляются только компоненты Office и OneDrive. Другие продукты Microsoft (Edge, VS Code, Teams и др.) не затрагиваются.
+Если вы согласились на копию данных Outlook, она лежит на Рабочем столе в папке `OfficeUninstall-backup-ГГГГММДД-ЧЧММСС`. Установите Office, закройте все приложения Office и выполните в Terminal (пароль не нужен, `sudo` не используйте):
 
-# Восстановление профиля Outlook из копии
-Если вы согласились на копию данных Outlook, она лежит на Рабочем столе в папке `OfficeUninstall-backup-ГГГГММДД-ЧЧММСС`. Папки внутри повторяют исходные места, поэтому их нужно вернуть обратно:
+```
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_restore.sh)"
+```
+
+Что делает скрипт:
+
+1. Проверяет «Полный доступ к диску» для Terminal и при необходимости просит его выдать.
+2. Проверяет, что Outlook установлен, а приложения Office закрыты.
+3. Находит на Рабочем столе папку `OfficeUninstall-backup-*`. Если их несколько, предложит выбрать; свою папку можно передать аргументом. О неполной копии предупредит.
+4. Если контейнеры ещё не созданы, сам запустит Outlook, чтобы macOS их создала.
+5. Сохраняет текущие данные Outlook на Рабочий стол в `OfficeUninstall-before-restore-*`, копирует данные из резервной копии и проверяет число файлов.
+
+После работы скрипт подскажет отключить «Полный доступ к диску», если он выдавался во время запуска.
+
+Что важно знать:
+
+- Почта IMAP, Exchange и Microsoft 365 подтянется с сервера, но после восстановления может понадобиться войти в аккаунт заново.
+- Восстанавливайте копию в ту же или более новую версию Outlook: более старая может не открыть базу.
+- Не удаляйте папку с копией, пока не убедитесь, что всё на месте.
+
+<details>
+<summary>То же самое вручную</summary>
+
+Папки внутри копии повторяют исходные места, поэтому их нужно вернуть обратно:
 
 | Папка в копии | Куда положить |
 |---|---|
@@ -35,27 +74,20 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/mast
 2. В Finder нажмите Cmd+Shift+G и откройте `~/Library/Containers`. Перенесите туда `com.microsoft.Outlook` из копии и согласитесь на замену. Так же замените `UBF8T346G9.Office` в `~/Library/Group Containers`.
 3. Запустите Outlook: профиль и локальные данные должны вернуться.
 
-Всё это за вас делает отдельный скрипт. Установите Office, закройте все приложения Office и выполните в Terminal (пароль не нужен, `sudo` не используйте):
-```
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_restore.sh)"
-```
-Скрипт сначала проверяет и при необходимости просит выдать Terminal «Полный доступ к диску», затем что Outlook установлен и закрыт, находит на Рабочем столе папку `OfficeUninstall-backup-*` (если их несколько, предложит выбрать; свою папку можно передать аргументом), предупреждает о неполной копии. Если контейнеры ещё не созданы, сам запустит Outlook, чтобы macOS их создала. Перед заменой он сохраняет текущие данные Outlook на Рабочий стол в `OfficeUninstall-before-restore-*`, после копирования проверяет число файлов.
+Если Finder не даёт заменить папки (контейнеры защищены macOS), используйте Terminal. Подставьте имя своей папки с копией:
 
-Вручную то же самое делается так. Если Finder не даёт заменить папки (контейнеры защищены macOS), используйте Terminal. Подставьте имя своей папки с копией:
 ```
 cd ~/Desktop/OfficeUninstall-backup-ГГГГММДД-ЧЧММСС
 osascript -e 'quit app "Microsoft Outlook"'
 rsync -a com.microsoft.Outlook/ ~/Library/Containers/com.microsoft.Outlook/
 rsync -a UBF8T346G9.Office/ "$HOME/Library/Group Containers/UBF8T346G9.Office/"
 ```
+
 Terminal может потребовать «Полный доступ к диску» (Системные настройки → Конфиденциальность и безопасность).
 
-Что важно знать:
-- Почта IMAP, Exchange и Microsoft 365 подтянется с сервера, но после восстановления может понадобиться войти в аккаунт заново.
-- Восстанавливайте копию в ту же или более новую версию Outlook: более старая может не открыть базу.
-- Не удаляйте папку с копией, пока не убедитесь, что всё на месте.
+</details>
 
-# Другие решения
+## Другие решения
 
 Ниже инструменты, которые я проверил на момент написания (октябрь 2026). Отдельного официального «удалителя» Office для Mac я не нашёл: у Microsoft есть только инструкция по ручному удалению и инструмент удаления лицензий.
 
@@ -71,21 +103,16 @@ Terminal может потребовать «Полный доступ к дис
 
 Коммерческие деинсталляторы (например, CleanMyMac или BuhoCleaner) тоже удаляют Office вместе с остатками, но это платные программы, и их набор путей неизвестен.
 
-## Чем этот скрипт отличается
+## Ссылки
 
-- Перед вопросами проверяет, что реально осталось: системные файлы, профиль, данные Outlook, чеки установки, связку ключей, иконки Dock.
-- Только Office: профили и настройки Edge, VS Code, Teams и других продуктов Microsoft не затрагиваются.
-- Просит закрыть запущенные приложения Office и выдать «Полный доступ к диску» до начала работы, при необходимости открывает нужные Системные настройки.
-- Делает резервную копию данных Outlook перед удалением и не удаляет их без вашего согласия.
-- Удаляет иконки Office из Dock (закреплённые и «недавние»), чеки установки (`pkgutil`), фоновые службы.
-- Записи связки ключей удаляются по одной, с подтверждением каждой; пароли не читаются.
-- Русский и английский интерфейс по языку macOS.
-
-# Ссылки
 Microsoft не предоставляет официальную программу удаления, но инструкции есть на сайте:
- 1. [How to completely remove Office for Mac 2011][1]
- 2. [Troubleshoot Office for Mac issues by completely uninstalling before you reinstall][2]
 
+1. [How to completely remove Office for Mac 2011][1]
+2. [Troubleshoot Office for Mac issues by completely uninstalling before you reinstall][2]
+
+## Лицензия
+
+[MIT](LICENSE)
 
   [1]: https://support.microsoft.com/en-us/kb/2398768
   [2]: https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
@@ -94,31 +121,74 @@ Microsoft не предоставляет официальную програм�
 
 # English
 
+[Русская версия](#удаление-microsoft-office-для-mac)
+
 ## Microsoft Office for Mac uninstaller
-An interactive shell script for completely removing Microsoft Office for Mac 2011/2016/2019/2021/2024/365.
+
+An interactive shell script that completely removes Microsoft Office for Mac 2011/2016/2019/2021/2024/365. Before removal it can save your Outlook data, and a second script puts it back into the new installation.
+
+[Usage](#usage) · [Restoring Outlook](#restoring-the-outlook-profile) · [Other solutions](#other-solutions)
+
+### What it does
+
+- Before asking anything it checks what is actually left: system files, profile, Outlook data, installer receipts, keychain, Dock icons.
+- Touches only Office and OneDrive: profiles and settings of Edge, VS Code, Teams and other Microsoft products are left alone.
+- Makes a backup of Outlook data before removal and does not remove it without your consent.
+- Removes Office icons from the Dock (pinned and "recent"), installer receipts (`pkgutil`) and background services.
+- Keychain entries are removed one by one, each with a confirmation; passwords are never read.
+- Asks you to quit running Office apps and to grant "Full Disk Access" before starting, and opens the needed System Settings pane when necessary.
+- The interface language follows macOS: Russian or English.
 
 ### Usage
+
 The script runs straight from the network: no download and no options needed. Quit all Office apps and run in Terminal:
+
 ```
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh)"
 ```
-At the start the script warns that you will need the local password of your macOS account (characters are not shown while typing) and requests administrator rights itself. Running it as `sudo sh -c "…"` works too.
 
-The script asks the questions itself, you only confirm with `y` or `n` (Enter picks the default):
- 1. whether to remove Office data from the user profile (`~/Library` and local Outlook data), default "no"; if "yes", a backup copy of the Outlook data to the Desktop is offered;
- 2. one general question: remove Microsoft Office and all other components (apps, settings, containers, caches, Automator actions, fonts, OneDrive, and Office icons from the Dock: pinned and in "recent");
- 3. whether to search the keychain for Microsoft/Office entries (default "no"): the script lists found entries without reading passwords and asks about each one.
+At the start the script warns that you will need the local password of your macOS account (characters are not shown while typing) and requests administrator rights itself. Running it as `sudo sh -c "…"` works too, and `sudo su` is **not** needed: the script detects the real user itself.
+
+Then it asks questions, you only confirm with `y` or `n` (`д`/`н` also work; Enter picks the default):
+
+1. **Whether to remove Office data from the user profile** (`~/Library` and local Outlook data). Default "no". If "yes", a backup copy of the Outlook data to the Desktop is offered.
+2. **Remove Microsoft Office and all other components**: apps, settings, containers, caches, Automator actions, fonts, OneDrive, and Office icons from the Dock.
+3. **Whether to search the keychain for Microsoft/Office entries.** Default "no". The script lists found entries without reading passwords and asks about each one.
+
+Local Outlook data (`UBF8T346G9.Office`, `com.microsoft.Outlook`) is removed only together with the profile, and only if you explicitly agreed in the first question.
+
+Restarting the computer afterwards is recommended, especially before reinstalling Office; otherwise it is not required.
 
 The interface is colored and shows an animation during long operations. Colors are turned off with `NO_COLOR=1` or when the output is not a terminal.
 
-The message language follows the macOS language: Russian if the system is Russian, English otherwise. You can answer with `y`/`n` or `д`/`н`.
+### Restoring the Outlook profile
 
-- `sudo su` is **not** needed. The script detects the real user itself, so the result does not depend on how you got root. The profile (`~/Library`) is not touched by default, but you can agree to clean it by answering `y` to the question.
-- Local Outlook data (`UBF8T346G9.Office`, `com.microsoft.Outlook`) is removed only together with the profile, and only if you explicitly agreed in the first question.
-- Only Office components and OneDrive are removed. Other Microsoft products (Edge, VS Code, Teams, etc.) are not touched.
+If you agreed to the Outlook data backup, it is on the Desktop in the folder `OfficeUninstall-backup-YYYYMMDD-HHMMSS`. Install Office, quit all Office apps and run in Terminal (no password needed, do not use `sudo`):
 
-### Restoring the Outlook profile from the backup
-If you agreed to the Outlook data backup, it is on the Desktop in the folder `OfficeUninstall-backup-YYYYMMDD-HHMMSS`. The folders inside mirror the original locations, so put them back:
+```
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_restore.sh)"
+```
+
+What the script does:
+
+1. Checks "Full Disk Access" for Terminal and asks you to grant it if needed.
+2. Checks that Outlook is installed and Office apps are closed.
+3. Finds the `OfficeUninstall-backup-*` folder on the Desktop. If there are several it lets you choose; you can also pass your own folder as an argument. Warns about an incomplete backup.
+4. If the containers do not exist yet, starts Outlook itself so macOS creates them.
+5. Saves the current Outlook data to the Desktop as `OfficeUninstall-before-restore-*`, copies the data from the backup and checks the number of files.
+
+When it finishes, the script suggests turning "Full Disk Access" off again if it was granted during the run.
+
+Good to know:
+
+- IMAP, Exchange and Microsoft 365 mail is pulled from the server again, but after restoring you may need to sign in to the account once more.
+- Restore the backup into the same or a newer Outlook version: an older one may not open the database.
+- Do not delete the backup folder until you are sure everything is in place.
+
+<details>
+<summary>The same by hand</summary>
+
+The folders inside the backup mirror the original locations, so put them back:
 
 | Folder in the backup | Where to put it |
 |---|---|
@@ -129,25 +199,18 @@ If you agreed to the Outlook data backup, it is on the Desktop in the folder `Of
 2. In Finder press Cmd+Shift+G and open `~/Library/Containers`. Move `com.microsoft.Outlook` from the backup there and confirm the replacement. Do the same for `UBF8T346G9.Office` in `~/Library/Group Containers`.
 3. Launch Outlook: the profile and local data should be back.
 
-A separate script does all of this for you. Install Office, quit all Office apps and run in Terminal (no password needed, do not use `sudo`):
-```
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_restore.sh)"
-```
-The script first checks and, if needed, asks you to grant Terminal "Full Disk Access", then checks that Outlook is installed and closed, finds the `OfficeUninstall-backup-*` folder on the Desktop (if there are several it lets you choose; you can also pass your own folder as an argument) and warns about an incomplete backup. If the containers do not exist yet it starts Outlook itself so macOS creates them. Before replacing anything it saves the current Outlook data to the Desktop as `OfficeUninstall-before-restore-*`, and after copying it checks the number of files.
+If Finder refuses to replace the folders (containers are protected by macOS), use Terminal. Substitute the name of your backup folder:
 
-The same by hand: if Finder refuses to replace the folders (containers are protected by macOS), use Terminal. Substitute the name of your backup folder:
 ```
 cd ~/Desktop/OfficeUninstall-backup-YYYYMMDD-HHMMSS
 osascript -e 'quit app "Microsoft Outlook"'
 rsync -a com.microsoft.Outlook/ ~/Library/Containers/com.microsoft.Outlook/
 rsync -a UBF8T346G9.Office/ "$HOME/Library/Group Containers/UBF8T346G9.Office/"
 ```
+
 Terminal may need "Full Disk Access" (System Settings → Privacy & Security).
 
-Good to know:
-- IMAP, Exchange and Microsoft 365 mail is pulled from the server again, but after restoring you may need to sign in to the account once more.
-- Restore the backup into the same or a newer Outlook version: an older one may not open the database.
-- Do not delete the backup folder until you are sure everything is in place.
+</details>
 
 ### Other solutions
 
@@ -165,17 +228,13 @@ These are the tools I checked at the time of writing (October 2026). I did not f
 
 Commercial uninstallers (for example CleanMyMac or BuhoCleaner) also remove Office with its leftovers, but they are paid programs and the set of paths they remove is not known.
 
-### How this script is different
-
-- Before asking anything it checks what is actually left: system files, profile, Outlook data, installer receipts, keychain, Dock icons.
-- Office only: profiles and settings of Edge, VS Code, Teams and other Microsoft products are not touched.
-- Asks you to quit running Office apps and to grant "Full Disk Access" before starting, and opens the needed System Settings pane when necessary.
-- Makes a backup of Outlook data before removal and does not remove it without your consent.
-- Removes Office icons from the Dock (pinned and "recent"), installer receipts (`pkgutil`) and background services.
-- Keychain entries are removed one by one, each with a confirmation; passwords are never read.
-- Russian and English interface following the macOS language.
-
 ### References
+
 Microsoft does not provide an official uninstaller, but there are guides on its website:
- 1. [How to completely remove Office for Mac 2011][1]
- 2. [Troubleshoot Office for Mac issues by completely uninstalling before you reinstall][2]
+
+1. [How to completely remove Office for Mac 2011][1]
+2. [Troubleshoot Office for Mac issues by completely uninstalling before you reinstall][2]
+
+### License
+
+[MIT](LICENSE)
