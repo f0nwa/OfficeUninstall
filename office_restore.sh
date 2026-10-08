@@ -383,6 +383,20 @@ if [ -n "$MISSING" ]; then
         exit 1
     fi
     ok "$(tx "Folders created." "Папки созданы.")"
+    # The script started Outlook itself a moment ago, there is nothing to save in it: close it here.
+    # SIGTERM instead of an Apple event, which would make macOS ask for Automation access.
+    sleep 3   # let it finish writing its first files
+    spin_start "$(tx "Closing Outlook..." "Закрываем Outlook...")"
+    pkill -x "Microsoft Outlook" >/dev/null 2>&1
+    waited=0
+    while [ -n "$(running_office)" ] && [ "$waited" -lt 20 ]; do
+        sleep 1
+        waited=$((waited + 1))
+    done
+    pkill -x "Microsoft Database Daemon" >/dev/null 2>&1
+    spin_stop
+    [ -z "$(running_office)" ] && ok "$(tx "Outlook closed." "Outlook закрыт.")"
+    # Fallback: if it did not quit, ask the user to do it.
     while [ -n "$(running_office)" ]; do
         info "$(tx "Quit Outlook now (Cmd+Q)." "Закройте Outlook (Cmd+Q).")"
         printf '  %s›%s %s' "$YELLOW" "$RESET" "$(tx "Press Enter when Outlook is closed... " "Нажмите Enter, когда Outlook закрыт... ")"

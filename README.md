@@ -49,7 +49,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/mast
 1. Проверяет «Полный доступ к диску» для Terminal и при необходимости просит его выдать.
 2. Проверяет, что Outlook установлен, а приложения Office закрыты.
 3. Находит на Рабочем столе папку `OfficeUninstall-backup-*`. Если их несколько, предложит выбрать; свою папку можно передать аргументом. О неполной копии предупредит.
-4. Если контейнеры ещё не созданы, сам запустит Outlook, чтобы macOS их создала.
+4. Если контейнеры ещё не созданы, сам запустит Outlook, чтобы macOS их создала, и сам его закроет.
 5. Сохраняет текущие данные Outlook на Рабочий стол в `OfficeUninstall-before-restore-*`, копирует данные из резервной копии и проверяет число файлов.
 
 После работы скрипт подскажет отключить «Полный доступ к диску», если он выдавался во время запуска.
@@ -174,7 +174,7 @@ What the script does:
 1. Checks "Full Disk Access" for Terminal and asks you to grant it if needed.
 2. Checks that Outlook is installed and Office apps are closed.
 3. Finds the `OfficeUninstall-backup-*` folder on the Desktop. If there are several it lets you choose; you can also pass your own folder as an argument. Warns about an incomplete backup.
-4. If the containers do not exist yet, starts Outlook itself so macOS creates them.
+4. If the containers do not exist yet, starts Outlook itself so macOS creates them, then closes it again.
 5. Saves the current Outlook data to the Desktop as `OfficeUninstall-before-restore-*`, copies the data from the backup and checks the number of files.
 
 When it finishes, the script suggests turning "Full Disk Access" off again if it was granted during the run.
