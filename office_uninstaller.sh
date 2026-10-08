@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 fda6"
+SCRIPT_VERSION="2026-10-08 running"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -723,6 +723,25 @@ info "$(tx "Language" "Язык"): $LANG_UI   $(tx "Script version" "Верси�
 
 
 # ---- 1. check what exists before asking anything
+# Running Office apps lock their files and recreate settings on exit: ask to close them first.
+RUNNING=""
+for proc in "Microsoft Word" "Microsoft Excel" "Microsoft PowerPoint" "Microsoft Outlook" "Microsoft OneNote"; do
+    if pgrep -x "$proc" >/dev/null 2>&1; then
+        RUNNING="$RUNNING
+$proc"
+    fi
+done
+RUNNING="$(printf '%s\n' "$RUNNING" | grep .)"
+if [ -n "$RUNNING" ]; then
+    title "$(tx "Office applications are running" "Запущены приложения Office")"
+    printf '%s\n' "$RUNNING" | while IFS= read -r proc; do
+        warn "$proc"
+    done
+    info "$(tx "Quit them (Cmd+Q), save your documents, and run the script again." "Закройте их (Cmd+Q), сохраните документы и запустите скрипт повторно.")"
+    printf '\n'
+    exit 1
+fi
+
 # Full Disk Access first: without it macOS hides the contents of app containers and the
 # scan cannot find all leftovers.
 ensure_disk_access
@@ -754,14 +773,6 @@ fi
 if [ "$FOUND_SYSTEM" -eq 0 ] && [ "$FOUND_PROFILE" -eq 0 ] && [ "$KC_COUNT" -eq 0 ] && [ "$KC_RC" -eq 0 ]; then
     printf '\n%s%s%s%s\n\n' "$BOLD" "$GREEN" "$(tx "No traces of Microsoft Office found, nothing to remove." "Следов Microsoft Office не найдено, удалять нечего.")" "$RESET"
     exit 0
-fi
-
-if [ "$FOUND_SYSTEM" -gt 0 ] || [ "$FOUND_PROFILE" -gt 0 ]; then
-    if pgrep -x -f "Microsoft (Word|Excel|PowerPoint|Outlook|OneNote)" >/dev/null 2>&1; then
-        printf '\n'
-        warn "$(tx "Office applications are still running. Please quit them first." "Приложения Office ещё запущены. Сначала закройте их.")"
-        ask "$(tx "Continue anyway?" "Всё равно продолжить?")" n || exit 1
-    fi
 fi
 
 # ---- 2. questions, only about what was found
