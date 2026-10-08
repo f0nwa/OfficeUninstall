@@ -117,7 +117,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/mast
 
 **Где скачать.** Актуальные установщики Microsoft публикует на странице [Update history for Office for Mac](https://learn.microsoft.com/en-us/officeupdates/update-history-office-for-mac). Там есть пакет установки всего набора Office (с Microsoft Teams и без него) для новой установки и пакеты обновления отдельных приложений (Word, Excel, PowerPoint, Outlook, OneNote). Ссылки на скачивание даны только для последних выпусков, поддерживается только самая новая версия. Отдельных установщиков для каждого приложения на странице нет.
 
-**Как активировать.**
+**Как активировать.** Активировать Office нужно до работы с Outlook: без активации почтовым ящиком воспользоваться не получится.
 
 - **Microsoft 365 (подписка).** Запустите любое приложение Office и войдите в учётную запись с активной подпиской.
 - **Office LTSC 2024 и 2021 для Mac по корпоративной лицензии.** Активирует Volume License (VL) Serializer: пакет `.pkg`, который запускают на Mac с установленным Office. Скачать его может только администратор корпоративного лицензирования: [Microsoft 365 admin center](https://admin.microsoft.com/) → Billing → Your products → Volume licensing → вкладка Download and keys, поиск «Office LTSC Standard for Mac 2024» или «2021». Подробности в [документации Microsoft](https://learn.microsoft.com/en-us/microsoft-365-apps/mac/volume-license-serializer). Лицензия лежит в `/Library/Preferences/com.microsoft.office.licensingV2.plist` и привязана к серийному номеру загрузочного диска, поэтому перенести её на другой Mac нельзя.
@@ -279,7 +279,7 @@ Good to know:
 
 **Where to download.** Microsoft publishes current installers on the [Update history for Office for Mac](https://learn.microsoft.com/en-us/officeupdates/update-history-office-for-mac) page. It has the install package for the whole Office suite (with or without Microsoft Teams) for a new installation, and update packages for individual apps (Word, Excel, PowerPoint, Outlook, OneNote). Download links are given only for the latest releases, and only the newest version is supported. The page has no standalone installers for each app.
 
-**How to activate.**
+**How to activate.** Office must be activated before you use Outlook: without activation the mailbox cannot be used.
 
 - **Microsoft 365 (subscription).** Launch any Office app and sign in with an account that has an active subscription.
 - **Office LTSC 2024 and 2021 for Mac under a volume license.** Activated by the Volume License (VL) Serializer: a `.pkg` package that you run on a Mac where Office is installed. Only a volume licensing administrator can download it: [Microsoft 365 admin center](https://admin.microsoft.com/) → Billing → Your products → Volume licensing → the Download and keys tab, search for "Office LTSC Standard for Mac 2024" or "2021". Details are in [Microsoft's documentation](https://learn.microsoft.com/en-us/microsoft-365-apps/mac/volume-license-serializer). The license is stored in `/Library/Preferences/com.microsoft.office.licensingV2.plist` and is tied to the serial number of the boot drive, so it cannot be moved to another Mac.

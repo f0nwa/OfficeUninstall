@@ -64,6 +64,8 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/mast
 
 ### 5. Активация
 
+> **Обязательно активируйте Office до работы с Outlook.** Без активации почтовым ящиком воспользоваться не получится. Поэтому не добавляйте учётную запись и не настраивайте почту, пока Office не активирован.
+
 - **Microsoft 365 (подписка).** Откройте любое приложение Office и войдите в рабочую или личную учётную запись.
 - **Office LTSC по корпоративной лицензии.** Запустите VL Serializer, полученный администратором ([подробности](../../README.md#где-скачать-office-и-как-активировать)). Лицензия удаляется вместе с Office, поэтому после переустановки серализатор нужно запускать снова.
 
@@ -104,7 +106,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/f0nwa/OfficeUninstall/mast
 3. Перезагрузите Mac.
 4. Установите Office, пока не открывая приложения.
 5. По необходимости: `office_remove_mau.sh`.
-6. Активируйте Office, затем закройте все приложения (Cmd+Q).
+6. Активируйте Office (без активации почта в Outlook не заработает), затем закройте все приложения (Cmd+Q).
 7. Если делали копию: `office_restore.sh`.
 8. Запустите Outlook. При Exchange on-premise переключитесь на прежний интерфейс.
 
@@ -176,6 +178,8 @@ The script asks for the password, shows what is left of Microsoft AutoUpdate and
 
 ### 5. Activate
 
+> **Activate Office before using Outlook.** Without activation the mailbox cannot be used. So do not add an account or set up mail until Office is activated.
+
 - **Microsoft 365 (subscription).** Open any Office app and sign in with your work or personal account.
 - **Office LTSC under a volume license.** Run the VL Serializer obtained by your administrator ([details](../../README.md#where-to-download-office-and-how-to-activate)). The license is removed together with Office, so run the serializer again after reinstalling.
 
@@ -216,6 +220,6 @@ This is not required for Microsoft 365 and IMAP.
 3. Restart your Mac.
 4. Install Office without opening the apps yet.
 5. If needed: `office_remove_mau.sh`.
-6. Activate Office, then quit all apps (Cmd+Q).
+6. Activate Office (without activation mail will not work in Outlook), then quit all apps (Cmd+Q).
 7. If you made a copy: `office_restore.sh`.
 8. Launch Outlook. With on-premise Exchange switch to the previous interface.
