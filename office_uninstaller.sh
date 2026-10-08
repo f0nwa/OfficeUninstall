@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 fda2"
+SCRIPT_VERSION="2026-10-08 fda3"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -60,7 +60,6 @@ KC_COUNT=0
 KC_RC=0
 DO_SYSTEM=0
 FAILED=""
-TRASHED=0
 PROTECT_PERSONAL=0
 STEP_TITLE=""
 step_end() { STEP_TITLE=""; }
@@ -217,13 +216,6 @@ delete()
         else
             case "$rm_err" in
                 *"Operation not permitted"*|*"Permission denied"*)
-                    # Protected app data: Finder is allowed to remove it, so move it to the Trash.
-                    if trash_via_finder "$1"; then
-                        ok "$1 ($(tx "moved to Trash" "перемещено в Корзину"))"
-                        REMOVED=$((REMOVED + 1))
-                        TRASHED=1
-                        return
-                    fi
                     fail "$(tx "Access denied by macOS" "macOS не дала доступ"): $1"
                     FAILED="$FAILED
 $1" ;;
@@ -231,17 +223,6 @@ $1" ;;
             esac
         fi
     fi
-}
-
-trash_via_finder()   # trash_via_finder /path (only inside the user profile)
-{
-    case "$1" in
-        "$USER_HOME"/*) ;;
-        *) return 1 ;;
-    esac
-    case "$1" in *\"*|*\\*) return 1 ;; esac
-    as_user osascript -e "tell application \"Finder\" to delete POSIX file \"$1\"" >/dev/null 2>&1
-    [ ! -e "$1" ] && [ ! -L "$1" ]
 }
 
 deletefiles()   # deletefiles /path/prefix  -> removes /path/prefix*
@@ -650,11 +631,19 @@ terminal_app_name()
     esac
 }
 
-# Lists protected Office folders of the user that the terminal cannot read.
-# Result: DENIED (one path per line).
+# Full Disk Access check: the TCC database can only be read with it.
+can_read_tcc()
+{
+    [ -e "/Library/Application Support/com.apple.TCC/TCC.db" ] || return 0
+    head -c 1 "/Library/Application Support/com.apple.TCC/TCC.db" >/dev/null 2>&1
+}
+
+# Sets DENIED: protected Office folders the terminal cannot read, plus a marker line
+# when Full Disk Access is missing altogether.
 probe_protected()
 {
     DENIED=""
+    can_read_tcc || DENIED="FULL_DISK_ACCESS"
     for d in "$USER_HOME"/Library/Containers/com.microsoft.* "$USER_HOME"/Library/Group\ Containers/UBF8T346G9.*; do
         [ -d "$d" ] || continue
         if ! ls -A "$d" >/dev/null 2>&1; then
@@ -667,39 +656,48 @@ $d"
 
 # macOS does not show a dialog for data protected this way and does not let a
 # program grant the access: open the Full Disk Access pane, wait, check again.
+# Restarting the terminal is not required: choose "Later" if macOS offers it.
 ensure_disk_access()
 {
     probe_protected
     [ -n "$DENIED" ] || return 0
     app="$(terminal_app_name)"
-    title "$(tx "Access to app data" "Доступ к данным приложений")"
-    warn "$(tx "macOS does not let $app read some Office folders:" "macOS не даёт $app читать часть папок Office:")"
-    printf '%s\n' "$DENIED" | head -5 | while IFS= read -r d; do
-        info "  ${d#$USER_HOME/}"
-    done
-    cnt="$(printf '%s\n' "$DENIED" | grep -c .)"
-    [ "$cnt" -gt 5 ] && info "  $(tx "... and" "... и ещё") $((cnt - 5))"
-    info "$(tx "If macOS shows 'wants to access data of other apps', click Allow." "Если macOS покажет окно «запрашивает доступ к данным других приложений», нажмите «Разрешить».")"
-    info "$(tx "Otherwise access is granted manually: Full Disk Access for $app." "Иначе доступ выдаётся вручную: «Полный доступ к диску» для $app.")"
+    title "$(tx "Disk access for $app" "Доступ к диску для $app")"
+    warn "$(tx "To remove Office data macOS needs Full Disk Access for $app." "Чтобы удалить данные Office, macOS требуется «Полный доступ к диску» для $app.")"
+    folders="$(printf '%s\n' "$DENIED" | grep -v '^FULL_DISK_ACCESS$')"
+    if [ -n "$folders" ]; then
+        printf '%s\n' "$folders" | head -5 | while IFS= read -r d; do
+            info "  ${d#$USER_HOME/}"
+        done
+        cnt="$(printf '%s\n' "$folders" | grep -c .)"
+        [ "$cnt" -gt 5 ] && info "  $(tx "... and" "... и ещё") $((cnt - 5))"
+    fi
     if ask "$(tx "Open System Settings and grant access now?" "Открыть Системные настройки и выдать доступ сейчас?")" y; then
         as_user open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" >/dev/null 2>&1
-        info "$(tx "In the window that opened, enable $app (if it is not listed: '+' > Applications > Utilities > $app)." "В открывшемся окне включите $app (если его нет в списке: «+» → Программы → Утилиты → $app).")"
-        info "$(tx "If macOS offers to quit $app, choose 'Later', otherwise the script will stop." "Если macOS предложит завершить $app, выберите «Позже», иначе скрипт прервётся.")"
-        printf '  %s›%s %s' "$YELLOW" "$RESET" "$(tx "Press Enter when access is granted (or to continue without it)... " "Нажмите Enter, когда доступ выдан (или чтобы продолжить без него)... ")"
-        read dummy < /dev/tty || exit 1
-        probe_protected
-        if [ -z "$DENIED" ]; then
-            printf '  %s✓ %s%s\n' "$GREEN" "$(tx "Access granted." "Доступ получен.")" "$RESET"
-            return 0
-        fi
-        warn "$(tx "Access is not active yet. The permission applies after $app is restarted: quit it (Cmd+Q), open it again and run the script again." "Доступ пока не действует. Права применятся после перезапуска $app: закройте его (Cmd+Q), откройте снова и запустите скрипт ещё раз.")"
+        info "$(tx "1. In the window that opened, enable the switch next to $app" "1. В открывшемся окне включите переключатель рядом с $app")"
+        info "$(tx "   (if it is not listed: '+' > Applications > Utilities > $app)." "   (если его нет в списке: «+» → Программы → Утилиты → $app).")"
+        info "$(tx "2. If macOS offers 'Quit & Reopen', choose 'Later'. Restarting $app is NOT needed." "2. Если macOS предложит «Завершить и открыть снова», выберите «Позже». Перезапускать $app НЕ нужно.")"
+        info "$(tx "3. Come back here and press Enter." "3. Вернитесь сюда и нажмите Enter.")"
+        tries=0
+        while [ "$tries" -lt 3 ]; do
+            tries=$((tries + 1))
+            printf '  %s›%s %s' "$YELLOW" "$RESET" "$(tx "Press Enter when access is granted... " "Нажмите Enter, когда доступ выдан... ")"
+            read dummy < /dev/tty || exit 1
+            probe_protected
+            if [ -z "$DENIED" ]; then
+                printf '  %s✓ %s%s\n' "$GREEN" "$(tx "Access granted." "Доступ получен.")" "$RESET"
+                return 0
+            fi
+            warn "$(tx "Access is not visible to the script yet. Make sure the switch next to $app is on." "Скрипт пока не видит доступ. Убедитесь, что переключатель рядом с $app включён.")"
+        done
+        info "$(tx "If the switch is on but access is still not active, quit $app (Cmd+Q), open it again and run the script again." "Если переключатель включён, а доступа всё нет, закройте $app (Cmd+Q), откройте снова и запустите скрипт ещё раз.")"
     fi
     if ask "$(tx "Continue without access?" "Продолжить без доступа?")" n \
     "$(tx "Part of the data will not be removed or backed up." "Часть данных не удастся удалить и скопировать в резервную копию.")"; then
         return 0
     fi
     printf '\n'
-    info "$(tx "Stopped. Grant access, restart $app and run the script again." "Остановлено. Выдайте доступ, перезапустите $app и запустите скрипт снова.")"
+    info "$(tx "Stopped. Grant Full Disk Access to $app and run the script again." "Остановлено. Выдайте $app «Полный доступ к диску» и запустите скрипт снова.")"
     exit 0
 }
 
@@ -717,7 +715,7 @@ retry_failed()
             info "$(tx "If macOS showed 'Terminal wants to access data of other apps', click Allow." "Если macOS показала окно «Терминал запрашивает доступ к данным других приложений», нажмите «Разрешить».")"
         else
             info "$(tx "Grant Full Disk Access: System Settings > Privacy & Security > Full Disk Access > enable Terminal." "Выдайте полный доступ к диску: Системные настройки > Конфиденциальность и безопасность > Полный доступ к диску > включите Терминал.")"
-            info "$(tx "Then fully quit Terminal (Cmd+Q), open it again and run the script again." "После этого полностью закройте Терминал (Cmd+Q), откройте снова и запустите скрипт ещё раз.")"
+            info "$(tx "If macOS offers 'Quit & Reopen', choose 'Later': restarting is not needed." "Если macOS предложит «Завершить и открыть снова», выберите «Позже»: перезапуск не нужен.")"
             if ask "$(tx "Open the Full Disk Access settings now?" "Открыть настройки полного доступа к диску?")" y; then
                 as_user open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles" >/dev/null 2>&1
             fi
@@ -838,11 +836,6 @@ if [ "$REMOVED" -gt 0 ]; then
     printf '\n%s%s%s %s%s\n' "$BOLD" "$GREEN" "$(tx "Done. Items removed:" "Готово. Удалено элементов:")" "$REMOVED" "$RESET"
 else
     printf '\n%s\n' "$(tx "Nothing was removed." "Ничего не удалено.")"
-fi
-
-if [ "$TRASHED" -eq 1 ]; then
-    printf '\n'
-    warn "$(tx "Some items were moved to the Trash because macOS blocked direct removal. Empty the Trash to free the space." "Часть элементов перемещена в Корзину, так как macOS заблокировала прямое удаление. Очистите Корзину, чтобы освободить место.")"
 fi
 
 if [ "$REMOVED" -gt 0 ] || [ "$KEYCHAIN_DONE" -eq 0 ]; then
