@@ -11,7 +11,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 fda3"
+SCRIPT_VERSION="2026-10-08 fda4"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -746,6 +746,8 @@ info "$(tx "Language" "Язык"): $LANG_UI   $(tx "Script version" "Верси�
 
 # ---- 1. check what exists before asking anything
 printf '\n'
+info "$(tx "The script checks which Office folders exist and whether they hold data." "Скрипт проверяет, какие папки Office есть на компьютере и есть ли в них данные.")"
+info "$(tx "macOS may ask: 'Terminal wants to access data of other apps'. Click Allow: nothing is removed at this step." "macOS может спросить: «Терминал запрашивает доступ к данным других приложений». Нажмите «Разрешить»: на этом шаге ничего не удаляется.")"
 spin_start "$(tx "Checking what is installed..." "Проверяем, что есть на компьютере...")"
 MODE=scan
 remove_all
