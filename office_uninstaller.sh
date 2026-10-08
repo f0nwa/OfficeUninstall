@@ -281,6 +281,7 @@ $USER_HOME/Documents/Microsoft User Data"
 PLISTBUDDY=/usr/libexec/PlistBuddy
 DOCK_PLIST="$USER_HOME/Library/Preferences/com.apple.dock.plist"
 DOCK_REMOVED=0
+DOCK_FAILED=0
 
 # Dock arrays with app icons: pinned apps and the "recent applications" section.
 DOCK_ARRAYS="persistent-apps recent-apps"
@@ -338,6 +339,7 @@ remove_dock_icons()
             DOCK_REMOVED=$((DOCK_REMOVED + 1))
         else
             fail "$(tx "Cannot remove icon" "Не удалось удалить иконку"): $name ($where)"
+            DOCK_FAILED=$((DOCK_FAILED + 1))
         fi
     done <<EOF
 $icons
@@ -1037,7 +1039,7 @@ if [ "$REMOVED" -gt 0 ] || [ "$KEYCHAIN_DONE" -eq 0 ]; then
         info "$(tx "   Search the keychain for \"ADAL\" and remove all matching entries." "   Найдите все записи со словом «ADAL» и удалите их.")"
     fi
     if [ "$REMOVED" -gt 0 ]; then
-        if [ "$DOCK_REMOVED" -eq 0 ]; then
+        if [ "$DOCK_FAILED" -gt 0 ]; then
             info "$(tx "- Remove Office icons from the Dock (right-click > Options > Remove from Dock)." "- Уберите значки Office из Dock (правый клик > Параметры > Удалить из Dock).")"
         fi
         info "$(tx "- Restarting the computer is recommended, especially before reinstalling Office (not required otherwise)." "- Перезагрузка рекомендуется, особенно перед повторной установкой Office (в остальных случаях необязательна).")"
