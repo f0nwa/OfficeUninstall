@@ -11,7 +11,7 @@
 #   com.microsoft.Outlook  ->  ~/Library/Containers/
 #   UBF8T346G9.Office      ->  ~/Library/Group Containers/
 
-SCRIPT_VERSION="2026-10-08 restore"
+SCRIPT_VERSION="2026-10-13 restore"
 
 # ---------------------------------------------------------------- colors
 ESC="$(printf '\033')"
@@ -207,6 +207,39 @@ count_files()
     find "$1" -type f ! -name '.com.apple.containermanagerd.metadata.plist' 2>/dev/null | wc -l | tr -d ' '
 }
 
+# retry_files SRC DEST ERRORS: ditto reports a file it could not copy as
+# "ditto: SRC/./relative/path: reason" and goes on with the rest of the tree. Such failures
+# are often transient (EINTR "Interrupted system call", a file briefly held by a background
+# process), so after a pass over the whole tree only these files are copied again, one by one
+# with a pause. Prints the errors that remain (lines it cannot parse are passed through as is).
+retry_files()
+{
+    printf '%s\n' "$3" | while IFS= read -r line; do
+        case "$line" in
+            "ditto: $1/"*) ;;
+            *) printf '%s\n' "$line"; continue ;;
+        esac
+        f="${line#ditto: }"
+        f="${f%: *}"
+        rel="${f#"$1"/}"
+        rel="${rel#./}"
+        n=0
+        err="$line"
+        while [ -n "$err" ] && [ "$n" -lt 5 ]; do
+            n=$((n + 1))
+            sleep 1
+            if out="$(ditto "$1/./$rel" "$2/$rel" 2>&1)" && [ -z "$out" ]; then
+                err=""
+            elif out="$(ditto --noextattr --noacl --norsrc --noqtn "$1/./$rel" "$2/$rel" 2>&1)" && [ -z "$out" ]; then
+                err=""
+            else
+                err="${out:-ditto: $1/./$rel: copy failed}"
+            fi
+        done
+        [ -n "$err" ] && printf '%s\n' "$err"
+    done
+}
+
 # copy_tree SRC DEST: merges SRC into DEST like the backup was made (ditto). The system
 # metadata file of a container is protected and never part of a backup, errors about it
 # are ignored. The reason of a real failure is left in COPY_ERR.
@@ -227,6 +260,7 @@ copy_tree()
             rc=$?
         fi
         real_err="$(printf '%s\n' "$copy_err" | grep -v 'containermanagerd.metadata.plist' | grep .)"
+        [ -n "$real_err" ] && real_err="$(retry_files "$1" "$2" "$real_err")"
         [ -z "$real_err" ] && rc=0
     done
     COPY_ERR="$real_err"
@@ -494,8 +528,20 @@ done
 
 # ---------------------------------------------------------------- summary
 printf '\n'
+if [ "$BAD" -eq 0 ] && [ -f "$SRC/backup-errors.log" ]; then
+    # Everything that is in the backup is back, but the backup itself lacks some files:
+    # the file count check above compares with the backup, not with the original profile.
+    missing_n="$(grep -c . "$SRC/backup-errors.log")"
+    printf '%s%s%s%s\n' "$BOLD" "$YELLOW" "$(tx "Folders restored: $RESTORED, but the backup itself was incomplete. Files not in it: $missing_n" "Восстановлено папок: $RESTORED, но сама копия была неполной. Файлов, которых в ней нет: $missing_n")" "$RESET"
+    # "ditto: /path/./Outlook/...: reason" -> "Outlook/..."
+    grep . "$SRC/backup-errors.log" | head -10 | sed 's#^ditto: ##; s#: [^:]*$##; s#^.*/\./##' | while IFS= read -r line; do
+        info "  $(printf '%s' "$line" | awk '{ if (length($0) > 100) print "..." substr($0, length($0) - 96); else print }')"
+    done
+    [ "$missing_n" -gt 10 ] && info "  $(tx "...and more, full list:" "...и другие, полный список:") ${MAGENTA}${SRC}/backup-errors.log${RESET}"
+    info "$(tx "Mail of IMAP, Exchange and Microsoft 365 accounts is downloaded from the server again. Files of local folders (On My Computer) may be found in earlier backups on the Desktop." "Почта аккаунтов IMAP, Exchange и Microsoft 365 скачается с сервера заново. Файлы локальных папок («На моём компьютере») можно поискать в более ранних копиях на Рабочем столе.")"
+fi
 if [ "$BAD" -eq 0 ]; then
-    printf '%s%s%s%s\n' "$BOLD" "$GREEN" "$(tx "Done. Folders restored:" "Готово. Восстановлено папок:") $RESTORED" "$RESET"
+    [ -f "$SRC/backup-errors.log" ] || printf '%s%s%s%s\n' "$BOLD" "$GREEN" "$(tx "Done. Folders restored:" "Готово. Восстановлено папок:") $RESTORED" "$RESET"
     title "$(tx "What next" "Что дальше")"
     info "$(tx "- Start Outlook: the profile and local data should be back." "- Запустите Outlook: профиль и локальные данные должны вернуться.")"
     info "$(tx "- Mail from IMAP, Exchange and Microsoft 365 is pulled from the server again, you may need to sign in once more." "- Почта IMAP, Exchange и Microsoft 365 подтянется с сервера заново, возможно, придётся ещё раз войти в аккаунт.")"

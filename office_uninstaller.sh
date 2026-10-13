@@ -12,7 +12,7 @@
 # 1.https://support.microsoft.com/en-us/kb/2398768
 # 2.https://support.microsoft.com/en-us/office/troubleshoot-office-for-mac-issues-by-completely-uninstalling-before-you-reinstall-ec3aa66e-6a76-451f-9d35-cba2e14e94c0?omkt=en-us&ui=en-us&rs=en-us&ad=us
 
-SCRIPT_VERSION="2026-10-08 defender"
+SCRIPT_VERSION="2026-10-13 backup-retry"
 SCRIPT_URL="https://raw.githubusercontent.com/f0nwa/OfficeUninstall/master/office_uninstaller.sh"
 REMOVED=0
 CLEAN_PROFILE=0
@@ -427,6 +427,39 @@ stop_services()
 }
 
 # ---------------------------------------------------------------- backup
+# retry_files SRC DEST ERRORS: ditto reports a file it could not copy as
+# "ditto: SRC/./relative/path: reason" and goes on with the rest of the tree. Such failures
+# are often transient (EINTR "Interrupted system call", a file briefly held by a background
+# process), so after a pass over the whole tree only these files are copied again, one by one
+# with a pause. Prints the errors that remain (lines it cannot parse are passed through as is).
+retry_files()
+{
+    printf '%s\n' "$3" | while IFS= read -r line; do
+        case "$line" in
+            "ditto: $1/"*) ;;
+            *) printf '%s\n' "$line"; continue ;;
+        esac
+        f="${line#ditto: }"
+        f="${f%: *}"
+        rel="${f#"$1"/}"
+        rel="${rel#./}"
+        n=0
+        err="$line"
+        while [ -n "$err" ] && [ "$n" -lt 5 ]; do
+            n=$((n + 1))
+            sleep 1
+            if out="$(ditto "$1/./$rel" "$2/$rel" 2>&1)" && [ -z "$out" ]; then
+                err=""
+            elif out="$(ditto --noextattr --noacl --norsrc --noqtn "$1/./$rel" "$2/$rel" 2>&1)" && [ -z "$out" ]; then
+                err=""
+            else
+                err="${out:-ditto: $1/./$rel: copy failed}"
+            fi
+        done
+        [ -n "$err" ] && printf '%s\n' "$err"
+    done
+}
+
 do_backup()
 {
     title "$(tx "Backup" "Резервная копия")"
@@ -457,6 +490,20 @@ do_backup()
                 fi
                 # The system metadata file of a container is protected and never needed in a backup.
                 real_err="$(printf '%s\n' "$copy_err" | grep -v 'containermanagerd.metadata.plist' | grep .)"
+                if [ -n "$real_err" ]; then
+                    # every attempt goes to the diagnostic log, not only the last one
+                    {
+                        printf '# %s: %s %s\n' "$p" "$(tx "attempt" "попытка")" "$attempt"
+                        printf '%s\n' "$real_err"
+                    } >> "$BACKUP/backup-attempts.log"
+                    real_err="$(retry_files "$p" "$dest" "$real_err")"
+                    if [ -n "$real_err" ]; then
+                        {
+                            printf '# %s: %s %s\n' "$p" "$(tx "left after the per-file retry of attempt" "осталось после поштучного повтора попытки")" "$attempt"
+                            printf '%s\n' "$real_err"
+                        } >> "$BACKUP/backup-attempts.log"
+                    fi
+                fi
                 [ -z "$real_err" ] && rc=0
             done
             spin_stop
@@ -479,7 +526,11 @@ EOF
     chown -R "$TARGET_USER" "$BACKUP"
     if [ "$COPIED" -gt 0 ]; then
         info "$(tx "Backup stored in" "Копия сохранена в") ${MAGENTA}${BACKUP}${RESET}"
-        [ -f "$BACKUP/backup-errors.log" ] && info "$(tx "Full error log:" "Полный журнал ошибок:") ${MAGENTA}${BACKUP}/backup-errors.log${RESET}"
+        [ -f "$BACKUP/backup-errors.log" ] && info "$(tx "Files missing from the backup:" "Файлы, которых нет в копии:") ${MAGENTA}${BACKUP}/backup-errors.log${RESET}"
+        if [ -f "$BACKUP/backup-attempts.log" ]; then
+            [ -f "$BACKUP/backup-errors.log" ] || info "$(tx "Some files were copied only on a repeated attempt." "Часть файлов скопировалась только с повторной попытки.")"
+            info "$(tx "Log of all copy attempts:" "Журнал всех попыток копирования:") ${MAGENTA}${BACKUP}/backup-attempts.log${RESET}"
+        fi
     else
         rmdir "$BACKUP" 2>/dev/null
         if [ "$COPY_FAILED" -eq 0 ]; then
